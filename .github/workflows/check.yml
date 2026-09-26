@@ -7,12 +7,19 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    # Os apps usam PyGObject, libnm e GStreamer do sistema; testar no Arch
+    # garante as mesmas versões e pacotes descritos no README.
+    container: archlinux:latest
     steps:
+      - name: Install dependencies
+        run: >
+          pacman -Syu --noconfirm --needed
+          gcc make python python-gobject gtk4 libadwaita libnm
+          gstreamer gst-plugins-base gst-plugins-good
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - name: Compile native library
         run: make
       - name: Run tests
         run: make check
+      - name: Check C parser with sanitizers
+        run: make native-check
