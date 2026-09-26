@@ -32,8 +32,10 @@ if not args.only:
 if args.snapshots:
     args.snapshots.mkdir(parents=True, exist_ok=True)
 temp = tempfile.TemporaryDirectory(prefix="ayo-smoke-")
-# Keep the real session/system buses available, but isolate all app data.
+# Keep the real session/system buses available, but isolate all app data and never make sound.
 os.environ["XDG_DATA_HOME"] = temp.name
+os.environ["XDG_CACHE_HOME"] = str(Path(temp.name) / "cache")
+os.environ["AYO_MUSIC_SINK"] = "fakesink"
 
 from ayo_desk.app import Application, PAGES
 from ayo_desk.core import Store
@@ -142,8 +144,11 @@ def inspect():
                 return GLib.SOURCE_REMOVE
             original, replacement, first, second = music_fixture
             if music_stage == 0:
-                assert page.playlist == [str(first)], "A pasta salva deve ser lida automaticamente ao abrir"
-                assert page.folder_row.get_subtitle() == str(original)
+                assert [page.library.tracks.get_item(n).path for n in range(page.library.tracks.get_n_items())] \
+                    == [str(first)], "A pasta salva deve ser lida automaticamente ao abrir"
+                assert page.library.get(str(first)).title == "Faixa inicial"
+                assert page.library.albums.get_n_items() == 1
+                assert page.status_detail.get_tooltip_text() == str(original)
                 from unittest.mock import patch
 
                 class SelectedFolder:
@@ -161,15 +166,26 @@ def inspect():
                         return Gio.File.new_for_path(str(replacement))
 
                 music_stage = 1
-                with patch("ayo_desk.music_page.Gtk.FileDialog", SelectedFolder):
+                with patch("ayo_desk.music.ui.window.Gtk.FileDialog", SelectedFolder):
                     page.choose_folder()
                 GLib.timeout_add(100, inspect)
                 return GLib.SOURCE_REMOVE
-            assert page.playlist == [str(second)], "Trocar de pasta deve atualizar a biblioteca"
+            paths = [page.library.tracks.get_item(n).path for n in range(page.library.tracks.get_n_items())]
+            assert paths == [str(second)], "Trocar de pasta deve atualizar a biblioteca"
             assert window.store.music_folder() == str(replacement)
-            assert page.folder_row.get_subtitle() == str(replacement)
             assert page.rescan_button.get_sensitive()
             assert first.is_file(), "A troca de pasta não pode apagar arquivos"
+            page.play_all()
+            assert page.current_path == str(second), "Tocar tudo deve começar a reprodução"
+            assert page.bar.title.get_text() == "Faixa da nova pasta"
+            for view in ("now", "queue", "songs", "albums", "artists", "genres", "folders"):
+                page.show_view(view)
+                assert page.stack.get_visible_child_name() == view
+            page.open_album_of(page.library.get(str(second)))
+            for text, expected in (("NOVA pasta", 1), ("não existe nada assim", 0), ("", 1)):
+                page.search_entry.set_text(text)
+                page.on_search(page.search_entry)  # the entry itself waits a moment before searching
+                assert page.songs.table.count() == expected, (text, page.songs.table.count())
         print(f"PASS UI: {key} ({application_id})", flush=True)
     except Exception:
         exception_hook(*sys.exc_info())

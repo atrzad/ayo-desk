@@ -8,9 +8,14 @@ ayo_desk/
 ├── network.py          libnm e perfis NetworkManager
 ├── bluetooth.py        BlueZ via D-Bus
 ├── tasks.py            operações assíncronas e pactl argumentado
-├── player.py           GStreamer playbin
-├── music/              Ayo Música: biblioteca, reprodução e integrações (sem GTK)
-│   └── library.py      descoberta segura de arquivos
+├── music/              Ayo Música
+│   ├── library.py      descoberta segura de arquivos e leitura incremental
+│   ├── tags.py         tags (mutagen) + inferência pelo nome do arquivo/pasta
+│   ├── covers.py       cache de capas endereçado pelo conteúdo
+│   ├── db.py           metadados, estatísticas e consultas
+│   ├── queue.py        fila, aleatório sem repetição e modos de repetição
+│   ├── engine.py       GStreamer playbin com gapless
+│   └── ui/             interface GTK4/libadwaita (modelo, visões, barra do player)
 ├── migrations.py       esquema SQLite versionado (PRAGMA user_version)
 ├── core.py             SQLite, configurações e ligação ctypes com a biblioteca C
 └── *_page.py           telas GTK4/libadwaita
@@ -20,3 +25,5 @@ native/calc.c           parser matemático limitado e reentrante
 O SQLite fica em `$XDG_DATA_HOME/ayo-desk/desk.sqlite3`, com permissão 0600. O esquema evolui por migrações numeradas em `migrations.py`: cada uma roda numa transação e só avança `user_version` se terminar inteira. Migrações publicadas nunca são editadas; mudanças novas entram como a próxima da lista. A biblioteca musical separa arquivos descobertos automaticamente de arquivos adicionados manualmente. Uma busca só altera o banco depois de terminar; se a pasta falhar, a última biblioteca continua disponível.
 
 Integrações do sistema ficam fora da camada visual. As operações longas usam callbacks no contexto principal do GLib, e comandos que ainda precisam de uma ferramenta existente (`pactl`) são executados como vetores de argumentos, sem shell.
+
+No Ayo Música, a lógica (`tags`, `library`, `db`, `queue`, `engine`) não depende de GTK e é testada diretamente. A interface mantém toda a biblioteca em memória como objetos `Track` e deriva álbuns, artistas, gêneros e pastas em `ui/model.py`. As listas usam `Gtk.ColumnView`/`Gtk.GridView`, que reciclam widgets. A leitura de tags roda em uma thread de trabalho, e só o resultado volta para o banco na thread principal.

@@ -11,7 +11,7 @@ Ferramentas nativas para Arch Linux, feitas em **Python + GTK4/libadwaita**, com
 | Bluetooth | Ligar/desligar adaptadores, busca de 30 segundos, parear com confirmação/PIN, conectar, desconectar, confiar, esquecer e bateria quando informada pelo dispositivo. |
 | Calendário | Navegar por datas, criar/editar/excluir compromissos com horário e notas, marcar dias ocupados e persistir os dados localmente. |
 | Calculadora | Operações básicas, potências, porcentagem, parênteses, funções científicas, histórico e copiar resultado. Parser em C, sem `eval`. |
-| Música | Pasta de músicas com subpastas, atualização da biblioteca, arquivos avulsos, busca, reproduzir/pausar, anterior/próxima, seek, volume, metadados, aleatório e repetição da biblioteca. |
+| Música | Biblioteca por tags (com leitura do nome do arquivo/pasta quando faltam), capas, álbuns, artistas, gêneros e pastas; busca sem acentos; fila com tocar a seguir; gapless; aleatório sem repetição; repetir todas/uma; retomada da sessão; contagem de reproduções; favoritas; pasta acompanhada automaticamente; arrastar e soltar. |
 
 ## Dependências
 
@@ -80,26 +80,26 @@ bind = SUPER, N, exec, ~/.local/bin/ayo-desk --standalone --page network
 
 O Ayo cria um perfil exclusivo para a interface, com IPv4 `shared`, sem ativação automática. O NetworkManager fornece DHCP/DNS/NAT usando sua própria instância do dnsmasq; **não é necessário habilitar dnsmasq.service**. A porta que fornece a internet não pode ser escolhida como destino. Um firewall pode exigir uma regra para o encaminhamento; o aplicativo não reescreve as regras do seu firewall.
 
-## Escolher a pasta de músicas
+## Ayo Música
 
-1. Abra **Ayo Música** e clique em **Escolher pasta**.
-2. Selecione a pasta da sua coleção e confirme em **Usar esta pasta**.
-3. O aplicativo busca os arquivos de áudio nela e nas subpastas, em segundo plano.
+1. Abra **Ayo Música** e escolha a pasta da sua coleção (ou use `~/Music` direto na tela inicial).
+2. O Ayo busca os arquivos na pasta e nas subpastas, em segundo plano, lê as tags e as capas e guarda tudo no banco local. Nas próximas vezes só relê o que mudou.
+3. Enquanto o app está aberto, a pasta é acompanhada: músicas novas, removidas ou editadas aparecem sozinhas (dá para desligar em **Preferências**).
 
-A pasta fica salva e é verificada novamente ao abrir o player. Use o botão de atualização ao lado do caminho para ler músicas novas, removidas ou movidas enquanto o aplicativo está aberto. **Trocar pasta** muda a origem da biblioteca; o botão **+** permite continuar adicionando arquivos avulsos.
+Quando o arquivo não tem tags, o Ayo usa o nome e a pasta: `Album - Gêmeos/01 - Esperando Você.mp3` vira faixa 1, "Esperando Você", do álbum "Gêmeos". Ele remove o id do YouTube (`[1rY6FxzenSo]`), marcações como `(Official Video)` e `(MP3_320K)`, e desfaz as trocas de caracteres feitas pelo yt-dlp (`：` → `:`). Em **Propriedades**, os campos deduzidos assim aparecem marcados com •.
 
-Trocar de pasta substitui as faixas descobertas automaticamente e mantém os arquivos adicionados manualmente. A faixa em reprodução pode continuar tocando durante a atualização. Remover uma faixa da biblioteca não apaga o arquivo e a mantém oculta nas buscas seguintes da mesma pasta; adicioná-la novamente pelo **+** restaura sua presença.
+Na barra lateral ficam Tocando agora, Fila, Músicas, Álbuns, Artistas, Gêneros e Pastas. Clique duas vezes numa música para tocar a lista a partir dela; o botão direito abre tocar a seguir, adicionar à fila, ir para o álbum/artista, propriedades, abrir pasta e remover. `Ctrl+F` busca em título, artista, álbum, gênero, ano e nome do arquivo, sem diferenciar acentos. Arquivos e pastas podem ser arrastados para a janela.
 
-São reconhecidas extensões como MP3, FLAC, OGG, OPUS, WAV, M4A, AAC e WMA, inclusive em maiúsculas, conforme os codecs instalados. Pastas ocultas e atalhos para diretórios não são percorridos. Se uma pasta estiver indisponível, a última biblioteca fica preservada para tentar novamente.
+A fila, a música atual e a posição ficam salvas: ao abrir de novo, a última música aparece pausada no ponto onde parou. Uma reprodução só conta depois de metade da música ou 4 minutos; pular antes disso conta como pulo. São reconhecidas extensões como MP3, FLAC, OGG, OPUS, WAV, M4A, AAC e WMA, conforme os codecs instalados. Pastas ocultas e atalhos para diretórios não são percorridos.
 
 ## Dados e limites
 
-- Eventos, playlists e histórico ficam em `$XDG_DATA_HOME/ayo-desk/desk.sqlite3` ou `~/.local/share/ayo-desk/desk.sqlite3`, com permissão `0600`. Os arquivos de música permanecem onde você os colocou; removê-los da biblioteca não os apaga do disco.
+- Eventos, biblioteca de músicas, estatísticas e histórico ficam em `$XDG_DATA_HOME/ayo-desk/desk.sqlite3` ou `~/.local/share/ayo-desk/desk.sqlite3`, com permissão `0600`. Os arquivos de música permanecem onde você os colocou; removê-los da biblioteca não os apaga do disco.
 - Senhas Wi-Fi são enviadas pela API do NetworkManager e guardadas no perfil administrado por ele. Não são passadas como argumentos de processos nem gravadas no histórico do Ayo.
 - O histórico do Ayo registra conexões concluídas por ele; os perfis do NetworkManager mostram também a última utilização conhecida. Não é um registro completo de todas as conexões feitas antes da instalação.
 - Novas redes pessoais WPA/WPA2/WPA3, OWE e abertas são configuráveis. Redes corporativas 802.1X e legadas precisam de um perfil previamente configurado no NetworkManager. VPNs existentes aparecem nos perfis salvos; não há editor de VPN/certificados nesta versão.
 - Calendário local, sem sincronização de contas, recorrência ou lembretes em segundo plano. Os horários são locais.
-- O player reproduz arquivos locais nos formatos cobertos pelos codecs GStreamer instalados. Não inclui streaming de serviços ou integração MPRIS nesta versão. Fechar a janela encerra a reprodução.
+- O player reproduz arquivos locais nos formatos cobertos pelos codecs GStreamer instalados. As capas ficam em cache em `$XDG_CACHE_HOME/ayo-desk/covers`. Sem o `python-mutagen`, o app usa apenas o nome do arquivo e da pasta.
 - Trigonometria em radianos. `%` significa dividir por 100: `200*10% = 20`; `200+10% = 200.1`. Funções: `sqrt`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `ln`, `log`, `exp`, `abs`, `floor`, `ceil`; constantes `pi`/`π` e `e`. Resultados usam precisão de `double`.
 
 ## Verificação e arquitetura

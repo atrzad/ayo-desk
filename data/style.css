@@ -47,3 +47,26 @@ searchentry:focus,
 spinbutton:focus,
 scale:focus { border-color: @window_fg_color; outline-color: @window_fg_color; box-shadow: 0 0 0 2px alpha(@window_fg_color, 0.28); }
 *:focus { outline-color: @window_fg_color; }
+
+/* Ayo Música */
+.player-bar { border-top: 1px solid alpha(@window_fg_color, 0.1); background: alpha(@window_fg_color, 0.03); }
+.player-bar .play-button { min-width: 44px; min-height: 44px; background: @window_fg_color; color: @window_bg_color; }
+.player-bar .play-button:hover { opacity: 0.86; }
+.cover-button { padding: 0; border-radius: 8px; }
+.cover { border-radius: 8px; }
+.cover.circular-cover { border-radius: 9999px; }
+.cover.large-cover { border-radius: 14px; box-shadow: 0 6px 28px alpha(black, 0.28); }
+.cover-empty { background: alpha(@window_fg_color, 0.08); color: alpha(@window_fg_color, 0.55); }
+.bw-covers .cover { filter: grayscale(1); }
+.album-tile { padding: 6px; border-radius: 12px; }
+.album-grid > child { border-radius: 14px; }
+.album-grid > child:hover { background: alpha(@window_fg_color, 0.06); }
+.track-table { background: transparent; }
+.track-table row:selected { background: alpha(@window_fg_color, 0.12); color: @window_fg_color; }
+.track-table .rating { letter-spacing: 1px; font-size: 12px; }
+.now-playing-icon { color: @window_fg_color; }
+.link-button { padding: 2px 6px; }
+.detail-header .title-1 { font-size: 30px; }
+.queue-played { opacity: 0.55; }
+.queue-current { background: alpha(@window_fg_color, 0.08); }
+.music-sidebar { background: alpha(@window_fg_color, 0.03); }

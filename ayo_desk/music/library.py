@@ -43,3 +43,44 @@ def scan_music_folder(folder, cancel=None):
         return str(root), sorted(found, key=lambda path: (path.casefold(), path))
     except OSError as exc:
         raise ValueError(f"Não foi possível ler a pasta de músicas. Verifique se ela está acessível.\n{exc}") from exc
+
+
+def read_changes(paths, known, root=None, cancel=None, progress=None):
+    """Read tags only for files that are new or changed since `known` {path: (mtime_ns, size)}.
+
+    Returns a list of metadata dicts (with a `cover` cache key). Runs in a worker thread.
+    """
+    from . import covers, tags
+
+    changed, folder_covers = [], {}
+    total = len(paths)
+    for number, path in enumerate(paths, start=1):
+        if cancel is not None and cancel.is_set():
+            raise CancelledError("Leitura cancelada")
+        try:
+            info = os.stat(path)
+        except OSError:
+            continue
+        signature = (info.st_mtime_ns, info.st_size)
+        if known.get(path) == tuple(signature):
+            continue
+        meta, cover = tags.read(path, root=root, with_cover=True)
+        meta["mtime_ns"], meta["size"] = signature
+        meta["search"] = tags.search_text(meta)
+        key = ""
+        if cover:
+            key = covers.store(cover)
+        if not key:
+            directory = os.path.dirname(path)
+            if directory not in folder_covers:
+                image = covers.folder_cover(directory)
+                try:
+                    folder_covers[directory] = covers.store(image.read_bytes()) if image else ""
+                except OSError:
+                    folder_covers[directory] = ""
+            key = folder_covers[directory]
+        meta["cover"] = key
+        changed.append(meta)
+        if progress and (number % 25 == 0 or number == total):
+            progress(number, total)
+    return changed

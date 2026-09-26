@@ -23,7 +23,7 @@ INDEPENDENT_PAGES = frozenset(("calendar", "calculator", "music"))
 WINDOW_SIZES = {
     "calendar": (640, 760, 520),
     "calculator": (500, 820, 400),
-    "music": (680, 820, 480),
+    "music": (1200, 780, 360),
 }
 
 
@@ -33,7 +33,7 @@ class Window(Adw.ApplicationWindow):
         title = f"Ayo {PAGES[page][0]}" if standalone else "Ayo Desk"
         width, height, minimum = WINDOW_SIZES.get(page, (800, 800, 650)) if standalone else (1080, 800, 830)
         super().__init__(application=app, title=title, default_width=width, default_height=height)
-        self.set_size_request(minimum, 560)
+        self.set_size_request(minimum, 480 if page == "music" else 560)
         self.store = store or Store()
         self.pages = {}
         self.standalone = standalone
@@ -44,7 +44,7 @@ class Window(Adw.ApplicationWindow):
         self.set_content(self.overlay)
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.overlay.set_child(outer)
-        header = Adw.HeaderBar()
+        header = self.header = Adw.HeaderBar()
         self.header_title = Adw.WindowTitle(title=title, subtitle="" if standalone else "Rede, áudio e Bluetooth")
         header.set_title_widget(self.header_title)
         self.theme = button("Alternar tema claro/escuro", self.toggle_theme, icon="display-brightness-symbolic")
