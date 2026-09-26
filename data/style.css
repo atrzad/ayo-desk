@@ -1,0 +1,49 @@
+/* Map libadwaita's accent roles to the current system foreground/background. */
+@define-color accent_color @window_fg_color;
+@define-color accent_bg_color @window_fg_color;
+@define-color accent_fg_color @window_bg_color;
+
+.desk-sidebar { background: alpha(@window_fg_color, 0.045); }
+.brand { font-size: 34px; font-weight: 900; letter-spacing: 4px; color: @window_fg_color; }
+.brand-caption { font-size: 10px; letter-spacing: 1.5px; opacity: 0.6; }
+.navigation-sidebar { background: transparent; }
+.navigation-sidebar row { margin: 3px 10px; border-radius: 12px; }
+.navigation-sidebar row:selected { background: alpha(@window_fg_color, 0.15); color: @window_fg_color; }
+.calculator-display { padding: 22px; border-radius: 18px; background: alpha(@window_fg_color, 0.08); }
+.calculator-entry { font-size: 19px; padding: 10px; }
+.calculator-result { font-size: 38px; font-weight: 600; padding-top: 10px; }
+.calculator-key { min-height: 44px; font-size: 19px; border-radius: 12px; }
+.music-hero { padding: 28px; border-radius: 20px; background: alpha(@window_fg_color, 0.09); }
+.music-hero image { color: @window_fg_color; }
+.music-hero .circular { min-width: 48px; min-height: 48px; }
+.desk-calendar { font-size: 18px; padding: 18px; border-radius: 18px; }
+.desk-calendar grid label { padding: 8px; }
+.numeric { font-variant-numeric: tabular-nums; }
+
+/* Ayo uses the system's light/dark surfaces, but keeps every accent achromatic. */
+button.suggested-action,
+button.suggested-action:hover,
+button.suggested-action:active,
+button.suggested-action:checked,
+.calculator-key.suggested-action {
+  background: @window_fg_color;
+  color: @window_bg_color;
+}
+button.suggested-action:hover { opacity: 0.86; }
+button:checked,
+togglebutton:checked,
+checkbutton:checked,
+radiobutton:checked { background: alpha(@window_fg_color, 0.16); color: @window_fg_color; }
+switch:checked { background: @window_fg_color; }
+switch:checked slider { background: @window_bg_color; }
+entry selection,
+textview selection,
+calendar:selected,
+calendar day:selected { background: alpha(@window_fg_color, 0.22); color: @window_fg_color; }
+.error { color: @window_fg_color; }
+entry:focus,
+entry:focus-within,
+searchentry:focus,
+spinbutton:focus,
+scale:focus { border-color: @window_fg_color; outline-color: @window_fg_color; box-shadow: 0 0 0 2px alpha(@window_fg_color, 0.28); }
+*:focus { outline-color: @window_fg_color; }

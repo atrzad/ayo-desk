@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ayo-desk"
+version = "0.1.2"
+description = "Aplicativos nativos para Arch Linux, feitos em Python, GTK4 e C"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Ayo Desk contributors"}]
+classifiers = [
+  "Environment :: X11 Applications :: GTK",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: C",
+  "Programming Language :: Python :: 3",
+]
+
+[project.scripts]
+ayo-desk = "ayo_desk.__main__:main"
+
+[tool.setuptools]
+packages = ["ayo_desk"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
