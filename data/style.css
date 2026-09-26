@@ -72,3 +72,42 @@ scale:focus { border-color: @window_fg_color; outline-color: @window_fg_color; b
 .music-sidebar { background: alpha(@window_fg_color, 0.03); }
 .missing-track { opacity: 0.5; }
 .new-playlist-row { opacity: 0.75; }
+
+/* Ayo Kanban — priority and deadlines read by weight and contrast, never by hue. */
+.kanban-board { padding: 6px 18px 18px 18px; }
+.kanban-column { padding: 10px 8px 10px 8px; border-radius: 16px; background: alpha(@window_fg_color, 0.045); }
+.kanban-column.drop-target { background: alpha(@window_fg_color, 0.09); box-shadow: inset 0 0 0 2px alpha(@window_fg_color, 0.35); }
+.kanban-column.drop-end .kanban-list { box-shadow: inset 0 -3px 0 @window_fg_color; }
+.kanban-column-title { font-weight: 800; letter-spacing: 0.3px; }
+.kanban-count { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: alpha(@window_fg_color, 0.1); }
+.kanban-count.over-limit { background: @window_fg_color; color: @window_bg_color; }
+.kanban-list, .kanban-list > row, .kanban-list > row:hover, .kanban-list > row:active { background: transparent; }
+.kanban-list > row { padding: 4px 4px; border-radius: 14px; }
+.kanban-list > row.drop-before { box-shadow: inset 0 3px 0 @window_fg_color; }
+.kanban-placeholder { padding: 28px 12px; }
+.kanban-card {
+  padding: 12px 12px 12px 14px;
+  border-radius: 12px;
+  background: @view_bg_color;
+  box-shadow: 0 0 0 1px alpha(@window_fg_color, 0.08), 0 1px 3px alpha(black, 0.12);
+}
+.kanban-list > row:hover .kanban-card { box-shadow: 0 0 0 1px alpha(@window_fg_color, 0.22), 0 2px 6px alpha(black, 0.16); }
+.kanban-card.priority-1 { box-shadow: inset 3px 0 alpha(@window_fg_color, 0.25), 0 0 0 1px alpha(@window_fg_color, 0.08), 0 1px 3px alpha(black, 0.12); }
+.kanban-card.priority-2 { box-shadow: inset 4px 0 alpha(@window_fg_color, 0.55), 0 0 0 1px alpha(@window_fg_color, 0.08), 0 1px 3px alpha(black, 0.12); }
+.kanban-card.priority-3 { box-shadow: inset 5px 0 @window_fg_color, 0 0 0 1px alpha(@window_fg_color, 0.08), 0 1px 3px alpha(black, 0.12); }
+.kanban-card.dragging { opacity: 0.3; }
+.kanban-card-title { font-weight: 600; }
+.kanban-done .kanban-card-title { text-decoration-line: line-through; opacity: 0.6; }
+.kanban-card-notes { font-size: 13px; }
+.kanban-card-menu { min-width: 24px; min-height: 24px; padding: 0; margin: -4px -4px 0 0; opacity: 0.35; }
+.kanban-list > row:hover .kanban-card-menu, .kanban-list > row:focus-within .kanban-card-menu { opacity: 1; }
+.kanban-tag { font-size: 12px; font-weight: 600; padding: 1px 7px; min-height: 22px; border-radius: 7px; background: alpha(@window_fg_color, 0.07); }
+.kanban-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.kanban-badge image { -gtk-icon-size: 12px; }
+.kanban-badge.soft { background: alpha(@window_fg_color, 0.08); }
+.kanban-badge.outline { box-shadow: inset 0 0 0 1px alpha(@window_fg_color, 0.55); }
+.kanban-badge.strong { background: @window_fg_color; color: @window_bg_color; }
+.kanban-quick-add { background: transparent; box-shadow: none; }
+.kanban-quick-add:focus-within { background: @view_bg_color; }
+.kanban-add-column { min-width: 200px; min-height: 48px; border-radius: 16px; border: 2px dashed alpha(@window_fg_color, 0.18); }
+.kanban-add-column:hover { border-color: alpha(@window_fg_color, 0.4); }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install relocatable application files and seven launchers under ~/.local."""
+"""Install relocatable application files and eight launchers under ~/.local."""
 import argparse
 import os
 from pathlib import Path
@@ -16,8 +16,11 @@ NAMES = {"network": ("Rede", "network-wireless", "Settings;"),
          "bluetooth": ("Bluetooth", "bluetooth", "Settings;"),
          "calendar": ("Calendário", "x-office-calendar", "Office;Calendar;"),
          "calculator": ("Calculadora", "accessories-calculator", "Utility;Calculator;"),
-         "music": ("Música", "multimedia-audio-player", "AudioVideo;Player;")}
-COMMANDS = {"music": "ayo-musica", "calculator": "ayo-calculadora", "calendar": "ayo-calendario"}
+         "music": ("Música", "multimedia-audio-player", "AudioVideo;Player;"),
+         "kanban": ("Kanban", "io.github.ayodesk.Desk.kanban", "Office;ProjectManagement;")}
+COMMANDS = {"music": "ayo-musica", "calculator": "ayo-calculadora", "calendar": "ayo-calendario",
+            "kanban": "ayo-kanban"}
+ICONS = BASE / "share/icons/hicolor/scalable/apps"
 MUSIC_TYPES = ("audio/mpeg;audio/mp3;audio/flac;audio/x-flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;"
                "audio/x-opus+ogg;audio/wav;audio/x-wav;audio/mp4;audio/x-m4a;audio/aac;audio/x-aiff;"
                "audio/x-ms-wma;audio/x-ape;audio/x-matroska;audio/x-mpegurl;audio/mpegurl;")
@@ -39,9 +42,11 @@ def main():
         (BASE / "bin/ayo-desk").unlink(missing_ok=True)
         for name in COMMANDS.values():
             (BASE / "bin" / name).unlink(missing_ok=True)
+        for icon in (ROOT / "data/icons").glob("*.svg"):
+            (ICONS / icon.name).unlink(missing_ok=True)
         if DEST.exists():
             shutil.rmtree(DEST)
-        print("Aplicativos removidos. Seus eventos, histórico e playlists foram preservados.")
+        print("Aplicativos removidos. Seus eventos, quadros, histórico e playlists foram preservados.")
         return
     if not (ROOT / "build/libayo.so").is_file():
         raise SystemExit("Execute make antes de instalar.")
@@ -60,6 +65,9 @@ def main():
         launcher = BASE / "bin" / command
         launcher.write_text("#!/bin/sh\nexec " + shlex.quote(str(executable)) + f' --page {key} "$@"\n')
         launcher.chmod(0o755)
+    ICONS.mkdir(parents=True, exist_ok=True)
+    for icon in (ROOT / "data/icons").glob("*.svg"):
+        shutil.copy2(icon, ICONS / icon.name)
     APPLICATIONS.mkdir(parents=True, exist_ok=True)
     for path, key in zip(paths, [None, *NAMES]):
         name, icon, categories = NAMES[key] if key else ("Desk", "preferences-system", "Settings;")
@@ -78,7 +86,7 @@ def main():
                         f"Icon={icon}\nTerminal=false\nCategories={categories}\nStartupNotify=true\n{extra}")
     if shutil.which("update-desktop-database"):
         subprocess.run(["update-desktop-database", str(APPLICATIONS)], check=True)
-    print(f"Instalado em {DEST}\nAbra Ayo Desk ou uma das seis ferramentas pelo menu de aplicativos.")
+    print(f"Instalado em {DEST}\nAbra Ayo Desk ou uma das sete ferramentas pelo menu de aplicativos.")
 
 
 if __name__ == "__main__":

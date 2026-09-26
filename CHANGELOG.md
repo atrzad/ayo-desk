@@ -1,5 +1,15 @@
 # Changelog
 
+## Não lançado — Ayo Kanban
+
+- Novo aplicativo independente **Ayo Kanban** (`ayo-kanban`), com ícone próprio em preto e branco.
+- Vários quadros; colunas com limite de cartões, coluna de concluídos, reordenação e exclusão sem perder cartões.
+- Arrastar e soltar com rolagem automática nas bordas, atalhos `Alt+setas` e menu *Mover para*.
+- Captura rápida com `#etiqueta`, `!`/`!!`/`!!!` e `@hoje`, `@amanhã`, `@sexta`, `@25/12`.
+- Prazos, prioridade, etiquetas, notas e lista de tarefas por cartão; busca sem acentos.
+- Arquivo com desfazer, exportação/importação JSON e exportação Markdown.
+- Dados em arquivo próprio (`kanban.sqlite3`), com migrações versionadas independentes do `desk.sqlite3`.
+
 ## Não lançado — Ayo Música completo (em andamento)
 
 - Biblioteca por tags com mutagen, inferência pelo nome do arquivo/pasta e leitura incremental.

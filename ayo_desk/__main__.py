@@ -5,8 +5,8 @@ from . import __version__
 
 def main():
     parser = argparse.ArgumentParser(description="Ayo Desk — ferramentas nativas para Arch Linux")
-    parser.add_argument("--page", "-p", default="network", choices=("network", "audio", "bluetooth", "calendar", "calculator", "music"),
-                        help="Música, calculadora e calendário sempre abrem como aplicativos independentes")
+    parser.add_argument("--page", "-p", default="network", choices=("network", "audio", "bluetooth", "calendar", "calculator", "music", "kanban"),
+                        help="Música, calculadora, calendário e kanban sempre abrem como aplicativos independentes")
     parser.add_argument("--standalone", action="store_true", help="Abrir apenas a ferramenta selecionada")
     parser.add_argument("files", nargs="*", help="Arquivos de áudio para tocar no Ayo Música")
     parser.add_argument("--version", action="version", version=__version__)

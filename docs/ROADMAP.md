@@ -8,6 +8,7 @@ O objetivo é chegar a uma suíte completa para o uso diário no Arch Linux sem 
 - **Ayo Música:** pasta persistente com subpastas, arquivos avulsos, player GStreamer, busca, volume, seek, aleatório e repetição.
 - **Ayo Calculadora:** parser seguro em C, funções científicas, histórico e cópia do resultado.
 - **Ayo Calendário:** eventos locais, notas, edição, exclusão e marcação de dias ocupados.
+- **Ayo Kanban:** vários quadros, colunas com limite, arrastar e soltar, captura rápida, prazos, prioridade, etiquetas, listas de tarefas, busca, arquivo e exportação/importação JSON e Markdown.
 - Tema monocromático seguindo o modo claro/escuro do sistema.
 
 ## Fase 1 — fundação (em andamento)
@@ -21,6 +22,7 @@ O objetivo é chegar a uma suíte completa para o uso diário no Arch Linux sem 
 ## Fase 2 — experiência diária
 
 - **Música:** tags artista/álbum, capas, playlists, fila, atalhos multimídia, MPRIS, monitoramento da pasta e retomada da última faixa.
+- **Kanban:** prazos dos cartões no Ayo Calendário, lembretes, cartões recorrentes, capa/cor monocromática por etiqueta, comando `ayo-kanban add` para capturar pelo Hyprland/wofi e reordenar colunas arrastando.
 - **Calendário:** recorrência, lembretes, busca, categorias, exportar/importar ICS e fuso horário explícito.
 - **Calculadora:** unidades, conversão, memória, porcentagem contextual, base binária/hexadecimal e histórico exportável.
 - **Rede:** VPN, hotspot Wi-Fi, importação/exportação de perfis e diagnóstico de DNS/rota.

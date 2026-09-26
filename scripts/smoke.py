@@ -18,11 +18,11 @@ sys.path.insert(0, str(ROOT))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--snapshots", type=Path)
-parser.add_argument("--only", choices=("network", "audio", "bluetooth", "calendar", "calculator", "music"))
+parser.add_argument("--only", choices=("network", "audio", "bluetooth", "calendar", "calculator", "music", "kanban"))
 args = parser.parse_args()
 if not args.only:
     failed = 0
-    for key in ("network", "audio", "bluetooth", "calendar", "calculator", "music"):
+    for key in ("network", "audio", "bluetooth", "calendar", "calculator", "music", "kanban"):
         command = [sys.executable, str(Path(__file__).resolve()), "--only", key]
         if args.snapshots:
             command += ["--snapshots", str(args.snapshots)]
@@ -79,7 +79,7 @@ queue = [args.only] if args.only else list(PAGES)
 
 
 def screenshot(window, name):
-    if not args.snapshots or name not in ("calculator", "calendar", "music"):
+    if not args.snapshots or name not in ("calculator", "calendar", "music", "kanban"):
         return
     snapshot = Gtk.Snapshot.new()
     background = Gdk.RGBA()
@@ -103,7 +103,7 @@ def inspect():
     key = window.stack.get_visible_child_name()
     page = window.pages[key]
     try:
-        if key in ("calendar", "calculator", "music"):
+        if key in ("calendar", "calculator", "music", "kanban"):
             assert window.standalone, "A ferramenta precisa abrir como aplicativo independente"
             assert not hasattr(window, "navigation"), "Aplicativo independente não deve ter a barra da central"
             assert window.get_title() == f"Ayo {PAGES[key][0]}"
@@ -129,6 +129,8 @@ def inspect():
             for popup in list(app.get_windows()):
                 if popup != window:
                     popup.close()
+        elif key == "kanban":
+            inspect_kanban(window, page)
         elif key == "network":
             assert page.network.client is not None, page.network.error
             assert page.network.client.get_nm_running(), "NetworkManager não está ativo"
@@ -228,6 +230,54 @@ def inspect():
     window.queue_draw()
     GLib.timeout_add(300, capture_and_continue)
     return GLib.SOURCE_REMOVE
+
+
+def close_popups(window):
+    for popup in list(app.get_windows()):
+        if popup != window:
+            popup.close()
+
+
+def inspect_kanban(window, page):
+    columns = page.kanban.columns(page.board_id)
+    assert [c["name"] for c in columns] == ["A fazer", "Fazendo", "Feito"], "Primeiro quadro com colunas padrão"
+    todo, doing, done = (c["id"] for c in columns)
+    entry = page.columns[todo].entry
+    entry.set_text("Revisar o Ayo Kanban #ayo !!! @hoje")
+    entry.emit("activate")
+    card = page.kanban.cards(page.board_id)[0]
+    assert (card["title"], card["priority"], card["tags"]) == ("Revisar o Ayo Kanban", 3, ["ayo"]), card
+    assert window.get_focus().is_ancestor(page.columns[todo].entry), "A captura rápida continua pronta para o próximo cartão"
+    page.step_card(card["id"], columns=1)
+    assert page.kanban.card(card["id"])["column_id"] == doing, "Alt+→ leva o cartão para a próxima coluna"
+    page.drop_card(card["id"], done, None)
+    assert page.kanban.card(card["id"])["done_at"], "Soltar em Feito marca como concluído"
+    page.archive_card(card["id"])
+    assert page.kanban.card(card["id"])["archived"]
+    page.kanban.restore_cards([card["id"]])
+    page.refresh()
+    first = page.kanban.add_card(todo, "Comprar pão", "Integral, sem açúcar", 1, None, ["casa"])
+    page.kanban.add_card(todo, "Pagar o boleto da internet", "", 3, "2026-01-05", ["contas"])
+    page.kanban.add_card(doing, "Reescrever a barra do Waybar", "Duas barras, workspaces customizados", 2,
+                         None, ["rice", "hyprland"], [("Workspaces", True), ("Mídia", True), ("Bateria", False)])
+    page.refresh()
+    for query, expected in (("#cas", 1), ("!!!", 2), ("pao", 1), ("nada assim", 0), ("", 4)):
+        page.search_entry.set_text(query)
+        page.refresh()
+        assert len(page.rows) == expected, (query, len(page.rows))
+    page.edit_card(first)
+    close_popups(window)
+    page.new_card(doing)
+    close_popups(window)
+    from ayo_desk.kanban.ui.dialogs import ArchiveDialog
+    archive = ArchiveDialog(page)
+    archive.present(window)
+    assert archive.stack.get_visible_child_name() == "empty"
+    archive.force_close()
+    before = page.kanban.stats(page.board_id)["cards"]
+    page.kanban.add_column(page.board_id, "Revisão", 1)
+    page.refresh()
+    assert len(page.columns) == 4 and page.kanban.stats(page.board_id)["cards"] == before
 
 
 def next_page():

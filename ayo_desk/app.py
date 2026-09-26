@@ -17,13 +17,15 @@ PAGES = {
     "calendar": ("Calendário", "x-office-calendar-symbolic", "calendar_page", "CalendarPage"),
     "calculator": ("Calculadora", "accessories-calculator-symbolic", "calculator_page", "CalculatorPage"),
     "music": ("Música", "audio-x-generic-symbolic", "music_page", "MusicPage"),
+    "kanban": ("Kanban", "view-dual-symbolic", "kanban_page", "KanbanPage"),
 }
 SYSTEM_PAGES = ("network", "audio", "bluetooth")
-INDEPENDENT_PAGES = frozenset(("calendar", "calculator", "music"))
+INDEPENDENT_PAGES = frozenset(("calendar", "calculator", "music", "kanban"))
 WINDOW_SIZES = {
     "calendar": (640, 760, 520),
     "calculator": (500, 820, 400),
     "music": (1200, 780, 360),
+    "kanban": (1280, 800, 360),
 }
 
 
@@ -33,8 +35,8 @@ class Window(Adw.ApplicationWindow):
         title = f"Ayo {PAGES[page][0]}" if standalone else "Ayo Desk"
         width, height, minimum = WINDOW_SIZES.get(page, (800, 800, 650)) if standalone else (1080, 800, 830)
         super().__init__(application=app, title=title, default_width=width, default_height=height)
-        self.set_size_request(minimum, 480 if page == "music" else 560)
-        self.store = store or Store()
+        self.set_size_request(minimum, 480 if page in ("music", "kanban") else 560)
+        self._store = store
         self.pages = {}
         self.standalone = standalone
         self.allowed_pages = (page,) if standalone else SYSTEM_PAGES
@@ -90,6 +92,13 @@ class Window(Adw.ApplicationWindow):
         self.connect("close-request", self._closing)
         self.show_page(page)
 
+    @property
+    def store(self):
+        """desk.sqlite3, opened only when a page uses it (Ayo Kanban keeps its own file)."""
+        if self._store is None:
+            self._store = Store()
+        return self._store
+
     def show_page(self, key):
         if self.closed:
             return
@@ -132,7 +141,8 @@ class Window(Adw.ApplicationWindow):
         self.closed = True
         for page in self.pages.values():
             page.close()
-        self.store.close()
+        if self._store is not None:
+            self._store.close()
         return False
 
 

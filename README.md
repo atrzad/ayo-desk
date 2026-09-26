@@ -2,7 +2,7 @@
 
 Ferramentas nativas para Arch Linux, feitas em **Python + GTK4/libadwaita**, com uma **biblioteca C** usada pela calculadora. Funcionam no Hyprland/Wayland e também em sessões X11.
 
-**Ayo Desk** reúne apenas rede, áudio/microfone e Bluetooth. **Ayo Música**, **Ayo Calculadora** e **Ayo Calendário** são aplicativos independentes, com seus próprios atalhos, janelas e processos. Fechar a central não fecha esses aplicativos.
+**Ayo Desk** reúne apenas rede, áudio/microfone e Bluetooth. **Ayo Música**, **Ayo Calculadora**, **Ayo Calendário** e **Ayo Kanban** são aplicativos independentes, com seus próprios atalhos, janelas e processos. Fechar a central não fecha esses aplicativos.
 
 | Ferramenta | Recursos |
 | --- | --- |
@@ -11,6 +11,7 @@ Ferramentas nativas para Arch Linux, feitas em **Python + GTK4/libadwaita**, com
 | Bluetooth | Ligar/desligar adaptadores, busca de 30 segundos, parear com confirmação/PIN, conectar, desconectar, confiar, esquecer e bateria quando informada pelo dispositivo. |
 | Calendário | Navegar por datas, criar/editar/excluir compromissos com horário e notas, marcar dias ocupados e persistir os dados localmente. |
 | Calculadora | Operações básicas, potências, porcentagem, parênteses, funções científicas, histórico e copiar resultado. Parser em C, sem `eval`. |
+| Kanban | Vários quadros, colunas com limite de cartões e coluna de concluídos, arrastar e soltar, captura rápida (`Comprar pão #casa !! @amanhã`), prazos, prioridade, etiquetas, notas, lista de tarefas, busca, arquivo com desfazer e exportação/importação em JSON e Markdown. Tudo local. |
 | Música | Biblioteca por tags (com leitura do nome do arquivo/pasta quando faltam), capas, álbuns, artistas, gêneros e pastas; busca sem acentos; fila com tocar a seguir; gapless; aleatório sem repetição; repetir todas/uma; retomada da sessão; contagem de reproduções; favoritas; pasta acompanhada automaticamente; arrastar e soltar. |
 
 ## Dependências
@@ -40,9 +41,10 @@ python3 -m ayo_desk --standalone --page bluetooth
 python3 -m ayo_desk --page calendar
 python3 -m ayo_desk --page calculator
 python3 -m ayo_desk --page music
+python3 -m ayo_desk --page kanban
 ```
 
-Para rede, áudio e Bluetooth, `--page` seleciona uma seção na central; `--standalone` abre o controle em uma janela própria. Música, calculadora e calendário sempre abrem como aplicativos independentes, inclusive quando chamados por `--page`. Cada aplicativo reutiliza apenas sua própria janela. `Ctrl+Q` fecha a janela. O botão no cabeçalho alterna entre tema claro e escuro.
+Para rede, áudio e Bluetooth, `--page` seleciona uma seção na central; `--standalone` abre o controle em uma janela própria. Música, calculadora, calendário e kanban sempre abrem como aplicativos independentes, inclusive quando chamados por `--page`. Cada aplicativo reutiliza apenas sua própria janela. `Ctrl+Q` fecha a janela. O botão no cabeçalho alterna entre tema claro e escuro.
 
 O aplicativo usa os estilos nativos do libadwaita. Uma variável global `GTK_THEME` é ignorada dentro do processo do Ayo para evitar que temas GTK3 causem sobreposição de textos e controles.
 
@@ -52,14 +54,15 @@ O aplicativo usa os estilos nativos do libadwaita. Uma variável global `GTK_THE
 make install
 ```
 
-Instala uma cópia em `~/.local/share/ayo-desk/app`, o executável `~/.local/bin/ayo-desk` e sete entradas de menu: **Ayo Desk**, **Ayo Rede**, **Ayo Áudio e microfone**, **Ayo Bluetooth**, **Ayo Calendário**, **Ayo Calculadora** e **Ayo Música**. Não precisa de sudo. Para aplicar alterações do código, execute `make install` novamente.
+Instala uma cópia em `~/.local/share/ayo-desk/app`, o executável `~/.local/bin/ayo-desk` e oito entradas de menu: **Ayo Desk**, **Ayo Rede**, **Ayo Áudio e microfone**, **Ayo Bluetooth**, **Ayo Calendário**, **Ayo Calculadora**, **Ayo Música** e **Ayo Kanban**. Não precisa de sudo. Para aplicar alterações do código, execute `make install` novamente.
 
-Os três aplicativos independentes também têm comandos próprios:
+Os quatro aplicativos independentes também têm comandos próprios:
 
 ```sh
 ~/.local/bin/ayo-musica
 ~/.local/bin/ayo-calculadora
 ~/.local/bin/ayo-calendario
+~/.local/bin/ayo-kanban
 ```
 
 Exemplo opcional de atalho no Hyprland:
@@ -100,8 +103,23 @@ Na barra lateral ficam Tocando agora, Fila, Músicas, Álbuns, Artistas, Gênero
 
 A fila, a música atual e a posição ficam salvas: ao abrir de novo, a última música aparece pausada no ponto onde parou. Uma reprodução só conta depois de metade da música ou 4 minutos; pular antes disso conta como pulo. São reconhecidas extensões como MP3, FLAC, OGG, OPUS, WAV, M4A, AAC e WMA, conforme os codecs instalados. Pastas ocultas e atalhos para diretórios não são percorridos.
 
+## Ayo Kanban
+
+Na primeira abertura aparece **Meu quadro** com as colunas **A fazer**, **Fazendo** e **Feito**. Troque de quadro pelo seletor no cabeçalho; o menu cria, renomeia, exclui e exporta quadros.
+
+- **Captura rápida:** digite no campo *Adicionar cartão…* de qualquer coluna e tecle Enter. `#palavra` vira etiqueta, `!`, `!!` e `!!!` são prioridade baixa, média e alta, e `@hoje`, `@amanhã`, `@sexta`, `@25/12` ou `@2026-12-25` definem o prazo. Ex.: `Pagar internet #contas !!! @05/10`.
+- **Mover:** arraste o cartão para outra posição ou coluna (a janela rola sozinha perto das bordas), use *Mover para* no menu do cartão ou selecione o cartão e use `Alt+←/→` (coluna ao lado) e `Alt+↑/↓` (subir/descer).
+- **Cartão:** clique para editar título, coluna, prazo (calendário), prioridade, etiquetas, notas e lista de tarefas. O cartão mostra o progresso da lista (`2/3`), prazos *Hoje*, *Amanhã* e *Atrasado* e a prioridade pela espessura da barra lateral.
+- **Colunas:** limite de cartões (o contador fica invertido quando passa do limite) e *Coluna de concluídos*: cartões ali ficam riscados, contam como feitos e não aparecem como atrasados. Excluir uma coluna leva os cartões para a coluna vizinha.
+- **Busca (`Ctrl+F`):** procura em título, notas e etiquetas sem diferenciar acentos; `#eti` filtra por etiqueta e `!!` mostra só prioridade média ou alta. Clicar numa etiqueta do cartão filtra por ela.
+- **Arquivar:** `Delete` ou o menu do cartão tira o cartão do quadro sem apagar, com *Desfazer*; *Arquivar cartões concluídos* limpa a coluna de concluídos. Os arquivados podem ser restaurados em **Cartões arquivados**.
+- **Arquivos abertos:** *Exportar quadro (JSON)* e *Exportar todos os quadros* geram um backup completo, inclusive arquivados; *Importar* sempre cria quadros novos, sem sobrescrever nada, e valida o arquivo inteiro antes de gravar. *Exportar como Markdown* gera uma lista de tarefas legível em qualquer editor.
+
+`Ctrl+N` abre um novo cartão, `Ctrl+Shift+N` um novo quadro e `Ctrl+?` mostra os atalhos. *Cartões compactos* no menu esconde notas e etiquetas.
+
 ## Dados e limites
 
+- Os quadros do Ayo Kanban ficam num arquivo próprio, `$XDG_DATA_HOME/ayo-desk/kanban.sqlite3` (ou `~/.local/share/ayo-desk/kanban.sqlite3`), também com permissão `0600`. Para backup ou para levar a outro computador, use *Exportar todos os quadros (JSON)*.
 - Eventos, biblioteca de músicas, estatísticas e histórico ficam em `$XDG_DATA_HOME/ayo-desk/desk.sqlite3` ou `~/.local/share/ayo-desk/desk.sqlite3`, com permissão `0600`. Os arquivos de música permanecem onde você os colocou; removê-los da biblioteca não os apaga do disco.
 - Senhas Wi-Fi são enviadas pela API do NetworkManager e guardadas no perfil administrado por ele. Não são passadas como argumentos de processos nem gravadas no histórico do Ayo.
 - O histórico do Ayo registra conexões concluídas por ele; os perfis do NetworkManager mostram também a última utilização conhecida. Não é um registro completo de todas as conexões feitas antes da instalação.
@@ -117,7 +135,7 @@ make check
 python3 scripts/smoke.py --snapshots /tmp/ayo-desk-preview
 ```
 
-O teste gráfico abre as seis telas com um banco temporário e consulta os serviços reais. Não muda conexões, pareia aparelhos ou altera o volume do sistema. Os testes unitários validam o parser C, persistência, perfis de Wi-Fi/compartilhamento e limites das integrações.
+O teste gráfico abre as sete telas com um banco temporário e consulta os serviços reais. Não muda conexões, pareia aparelhos ou altera o volume do sistema. Os testes unitários validam o parser C, persistência, perfis de Wi-Fi/compartilhamento e limites das integrações.
 
 Para diagnosticar uma instalação sem alterar o sistema:
 
