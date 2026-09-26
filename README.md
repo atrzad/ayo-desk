@@ -90,6 +90,12 @@ Quando o arquivo não tem tags, o Ayo usa o nome e a pasta: `Album - Gêmeos/01 
 
 Na barra lateral ficam Tocando agora, Fila, Músicas, Álbuns, Artistas, Gêneros e Pastas. Clique duas vezes numa música para tocar a lista a partir dela; o botão direito abre tocar a seguir, adicionar à fila, ir para o álbum/artista, propriedades, abrir pasta e remover. `Ctrl+F` busca em título, artista, álbum, gênero, ano e nome do arquivo, sem diferenciar acentos. Arquivos e pastas podem ser arrastados para a janela.
 
+**Integração com o sistema.** O Ayo Música publica o MPRIS (`org.mpris.MediaPlayer2.ayo_musica`): as teclas de mídia do Hyprland via `playerctl`, a Waybar e outros controles mostram título, artista e capa, e controlam tocar/pausar, próxima, anterior, posição, volume, repetir e aleatório. Fechar a janela com música tocando deixa o player rodando em segundo plano; abrir o Ayo Música de novo traz a janela de volta e `Ctrl+Q` encerra de vez. Quando a janela não está em foco, cada música nova aparece numa notificação com a capa. Arquivos abertos pelo gerenciador de arquivos ("Abrir com Ayo Música") ou passados na linha de comando (`ayo-musica faixa.mp3`) tocam na hora, sem entrar na biblioteca.
+
+**Atalhos.** `Espaço` toca/pausa, `Ctrl+←/→` anterior/próxima, `Shift+←/→` volta/avança 5 s, `Ctrl+↑/↓` volume, `M` silencia, `S` ordem aleatória, `R` repetir, `Ctrl+F` busca, `Ctrl+1…5` troca de tela, `Ctrl+,` preferências e `Ctrl+?` mostra todos os atalhos.
+
+**Fila, velocidade e timer.** Na **Fila**, arraste as próximas músicas para reordenar e escolha tocar na ordem, com músicas aleatórias ou com álbuns aleatórios (cada álbum inteiro, em ordem). O botão de relógio na barra do player ajusta a velocidade de 0,5× a 2× sem mudar o tom da voz, liga o timer de sono (15 min a 1h30, fim da música ou fim da fila, com o volume diminuindo aos poucos) e escolhe o dispositivo de saída. Faixas com mais de 20 minutos, como audiolivros e podcasts, voltam de onde pararam.
+
 A fila, a música atual e a posição ficam salvas: ao abrir de novo, a última música aparece pausada no ponto onde parou. Uma reprodução só conta depois de metade da música ou 4 minutos; pular antes disso conta como pulo. São reconhecidas extensões como MP3, FLAC, OGG, OPUS, WAV, M4A, AAC e WMA, conforme os codecs instalados. Pastas ocultas e atalhos para diretórios não são percorridos.
 
 ## Dados e limites

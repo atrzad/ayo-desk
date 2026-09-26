@@ -18,6 +18,9 @@ NAMES = {"network": ("Rede", "network-wireless", "Settings;"),
          "calculator": ("Calculadora", "accessories-calculator", "Utility;Calculator;"),
          "music": ("Música", "multimedia-audio-player", "AudioVideo;Player;")}
 COMMANDS = {"music": "ayo-musica", "calculator": "ayo-calculadora", "calendar": "ayo-calendario"}
+MUSIC_TYPES = ("audio/mpeg;audio/mp3;audio/flac;audio/x-flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;"
+               "audio/x-opus+ogg;audio/wav;audio/x-wav;audio/mp4;audio/x-m4a;audio/aac;audio/x-aiff;"
+               "audio/x-ms-wma;audio/x-ape;audio/x-matroska;audio/x-mpegurl;audio/mpegurl;")
 
 
 def desktop_quote(value):
@@ -65,9 +68,14 @@ def main():
         if key in COMMANDS:
             command = BASE / "bin" / COMMANDS[key]
             args_text = ""
+        extra = ""
+        if key == "music":
+            # Lets "Abrir com Ayo Música" work in file managers; files go to the running player.
+            args_text += " %F"
+            extra = f"MimeType={MUSIC_TYPES}\n"
         path.write_text(f"[Desktop Entry]\nVersion=1.0\nType=Application\nName=Ayo {name}\n"
                         f"Comment=Ferramentas nativas para Arch Linux\nExec={desktop_quote(command)}{args_text}\n"
-                        f"Icon={icon}\nTerminal=false\nCategories={categories}\nStartupNotify=true\n")
+                        f"Icon={icon}\nTerminal=false\nCategories={categories}\nStartupNotify=true\n{extra}")
     if shutil.which("update-desktop-database"):
         subprocess.run(["update-desktop-database", str(APPLICATIONS)], check=True)
     print(f"Instalado em {DEST}\nAbra Ayo Desk ou uma das seis ferramentas pelo menu de aplicativos.")

@@ -16,10 +16,12 @@ from .. import tags
 from ..db import MusicDB
 from ..engine import Player
 from ..library import AUDIO_EXTENSIONS, read_changes, scan_music_folder
-from ..queue import REPEAT_CYCLE, SHUFFLE_OFF, SHUFFLE_TRACKS, PlayQueue
+from ..queue import REPEAT_CYCLE, REPEAT_OFF, SHUFFLE_OFF, SHUFFLE_TRACKS, PlayQueue
 from .dialogs import open_containing_folder, show_about, show_preferences, show_properties
+from .integration import Integration
 from .model import Library, artist_names
 from .now_playing import NowPlaying
+from .playback_menu import PlaybackMenu
 from .player_bar import PlayerBar
 from .queue_view import QueueView
 from .views import AlbumsView, SongsView, album_page, artist_page, artists_view, folders_view, genres_view
@@ -35,6 +37,8 @@ SECTIONS = (
 )
 BIND = GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE
 SAVE_EVERY = 10.0
+LONG_TRACK = 20 * 60      # resume these from where they stopped (audiobooks, podcasts, DJ sets)
+SLEEP_FADE = 8.0
 MAX_WATCHED_FOLDERS = 2000
 WATCH_EVENTS = {Gio.FileMonitorEvent.CHANGES_DONE_HINT, Gio.FileMonitorEvent.DELETED, Gio.FileMonitorEvent.CREATED,
                 Gio.FileMonitorEvent.MOVED_IN, Gio.FileMonitorEvent.MOVED_OUT, Gio.FileMonitorEvent.RENAMED}
@@ -62,7 +66,13 @@ class MusicPage(Gtk.Box):
         self.since_save = 0.0
         self.volume_value = float(self.store.setting("music.volume", 70))
         self.muted = False
+        self.sleep_mode = None      # None, minutes (int), "track" or "queue"
+        self.sleep_deadline = None
         self.player = Player(self.on_state, self.on_error, self.on_queue_end, started=self.on_gapless)
+        self.player.rate = float(self.store.setting("music.rate", 1.0))
+        output = self.store.setting("music.output")
+        if output:
+            self.player.set_output(output)
 
         self._install_actions()
         self._build_header()
@@ -84,6 +94,8 @@ class MusicPage(Gtk.Box):
         self.split.set_content(content)
         self.append(self.split)
         self.bar = PlayerBar(self)
+        self.playback_menu = PlaybackMenu(self)
+        self.bar.side.prepend(self.playback_menu)
         self.append(self.bar)
 
         self.now_view = NowPlaying(self)
@@ -102,6 +114,7 @@ class MusicPage(Gtk.Box):
         drop.connect("drop", self.on_drop)
         self.add_controller(drop)
 
+        self.system = Integration(self)
         self.set_grayscale(self.store.setting("music.grayscale_covers", False), save=False)
         self.player.volume(self.volume_value)
         self.bar.show_volume(self.volume_value, False)
@@ -118,7 +131,7 @@ class MusicPage(Gtk.Box):
     def _install_actions(self):
         self.actions = Gio.SimpleActionGroup()
         simple = {"choose-folder": self.choose_folder, "add-files": self.add_files, "rescan": self.scan,
-                  "preferences": lambda: show_preferences(self.window, self), "search": self.toggle_search,
+                  "preferences": self.show_preferences, "shortcuts": lambda: self.system.show_shortcuts(), "search": self.toggle_search,
                   "about": lambda: show_about(self.window, __version__)}
         for name, callback in simple.items():
             action = Gio.SimpleAction.new(name, None)
@@ -154,6 +167,7 @@ class MusicPage(Gtk.Box):
         menu.append_section(None, library)
         other = Gio.Menu()
         other.append("Preferências", "music.preferences")
+        other.append("Atalhos do teclado", "music.shortcuts")
         other.append("Sobre o Ayo Música", "music.about")
         menu.append_section(None, other)
         header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, tooltip_text="Menu principal"))
@@ -235,7 +249,7 @@ class MusicPage(Gtk.Box):
         narrow.add_setter(self.split, "collapsed", True)
         narrow.add_setter(self.sidebar_button, "visible", True)
         narrow.add_setter(self.bar.side, "visible", False)
-        narrow.add_setter(self.bar.center, "width-request", 320)
+        narrow.add_setter(self.bar.center, "width-request", 260)
         compact = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 560sp"))
         compact.add_setter(self.bar.center, "width-request", 170)
         compact.add_setter(self.now_view.cover, "size", 220)
@@ -358,22 +372,28 @@ class MusicPage(Gtk.Box):
 
     def start(self, path, play=True, position=0.0, automatic=False):
         self.finish_listen(automatic)
+        self.save_resume()
         if path is None:
             self.stop_playback()
             return
+        track = self.library.get(path)
+        if not position and track and track.duration >= LONG_TRACK and self.store.setting("music.resume_long", True):
+            saved = self.music.resume_position(path)
+            if 30 < saved < track.duration - 30:
+                position = saved
         try:
             self.player.load(path, play=play, start=position)
         except ValueError as exc:
             self.notify(str(exc))
             self.stop_playback()
             return
-        self.track_started(path)
+        self.track_started(path, announce=play)
 
-    def track_started(self, path):
+    def track_started(self, path, announce=True):
         previous, self.current_path = self.current_path, path
         self.listened, self.last_tick = 0.0, time.monotonic()
         self.refresh_tables(previous, path)
-        self.player.set_next(self.queue.peek())
+        self.player.set_next(self.upcoming())
         track = self.library.get(path)
         self.bar.show_track(track, self.player)
         self.bar.show_modes(self.queue.shuffle, self.queue.repeat)
@@ -381,15 +401,30 @@ class MusicPage(Gtk.Box):
         if self.stack.get_visible_child_name() == "queue":
             self.queue_view.render(self.queue, self.library)
         self.save_session()
+        self.system.changed()
+        if announce:
+            self.system.notify_track(track)
+
+    def upcoming(self):
+        """What plays next without a gap, honouring the sleep timer."""
+        if self.sleep_mode == "track":
+            return None
+        if self.sleep_mode == "queue" and self.queue.index + 1 >= len(self.queue):
+            return None
+        return self.queue.peek()
 
     def stop_playback(self):
         previous = self.current_path
+        self.save_resume()
         self.player.stop()
         self.current_path = None
         self.refresh_tables(previous)
         self.bar.show_track(None, self.player)
         self.now_view.show_track(None, self.player)
         self.save_session()
+        self.system.changed()
+        if not self.window.get_visible() and not self.closed:
+            self.window.quit_app()  # hidden and nothing left to play: leave for real
 
     def on_gapless(self, path):
         """The engine already moved to the prepared track; bring the queue along."""
@@ -402,14 +437,26 @@ class MusicPage(Gtk.Box):
 
     def on_queue_end(self):
         self.finish_listen(automatic=True)
+        if self.current_path:
+            self.music.set_resume_position(self.current_path, 0)
+        mode = self.sleep_mode
+        if mode == "queue" and self.queue.index + 1 >= len(self.queue):
+            self.set_sleep(None)
+            self.queue.index = len(self.queue)
+            self.stop_playback()
+            return
         path = self.queue.advance(automatic=True)
-        if path:
+        if mode == "track":
+            self.set_sleep(None)
+            self.start(path, play=False, automatic=True)  # ready at the next track, paused
+        elif path:
             self.start(path, automatic=True)
         else:
             self.stop_playback()
 
     def on_state(self):
         self.bar.show_state(self.player)
+        self.system.changed("PlaybackStatus", "CanPlay", "CanSeek")
 
     def on_error(self, text):
         self.notify(f"Não foi possível tocar esta música: {text}")
@@ -438,12 +485,51 @@ class MusicPage(Gtk.Box):
         self.start(self.queue.jump(position))
 
     def seek(self, seconds):
-        self.player.seek(seconds)
+        if self.player.seek(seconds):
+            self.system.seeked(seconds)
+
+    def set_rate(self, rate):
+        self.player.set_rate(rate)
+        self.store.set_setting("music.rate", self.player.rate)
+        self.system.changed("Rate")
+
+    def set_output(self, device):
+        try:
+            self.player.set_output(device)
+        except ValueError as exc:
+            self.notify(str(exc))
+        self.store.set_setting("music.output", device)
+
+    def set_sleep(self, mode):
+        self.sleep_mode = mode
+        self.sleep_deadline = time.monotonic() + mode * 60 if isinstance(mode, int) else None
+        self.player.set_next(self.upcoming())
+        if mode:
+            self.notify(self.sleep_text())
+
+    def sleep_text(self):
+        if self.sleep_mode == "track":
+            return "A música para no fim desta faixa."
+        if self.sleep_mode == "queue":
+            return "A música para no fim da fila."
+        if self.sleep_deadline:
+            remaining = max(0, self.sleep_deadline - time.monotonic())
+            at = GLib.DateTime.new_now_local().add_seconds(remaining).format("%H:%M")
+            return f"A música para às {at} (em {max(1, round(remaining / 60))} min)."
+        return ""
+
+    def _sleep_now(self):
+        """Fade out gently, pause, and restore the volume for next time."""
+        self.sleep_mode = self.sleep_deadline = None
+        self.player.set_next(self.upcoming())
+        self.player.set_playing(False, fade=SLEEP_FADE)
+        self.playback_menu.show_sleep()
 
     def set_volume(self, value):
         self.volume_value = value
         self.player.volume(value)
         self.bar.show_volume(value, self.muted)
+        self.system.changed("Volume")
         if self.volume_timer:
             GLib.source_remove(self.volume_timer)
         self.volume_timer = GLib.timeout_add(600, self._save_volume)
@@ -459,19 +545,30 @@ class MusicPage(Gtk.Box):
         self.bar.show_volume(self.volume_value, self.muted)
 
     def set_shuffle(self, active):
-        self.queue.set_shuffle(SHUFFLE_TRACKS if active else SHUFFLE_OFF, self.album_of)
+        self.set_shuffle_mode(SHUFFLE_TRACKS if active else SHUFFLE_OFF)
+
+    def set_shuffle_mode(self, mode):
+        self.queue.set_shuffle(mode, self.album_of)
+        self._queue_changed()
+
+    def move_in_queue(self, source, target):
+        self.queue.move(source, target)
         self._queue_changed()
 
     def cycle_repeat(self):
-        self.queue.set_repeat(REPEAT_CYCLE[self.queue.repeat])
+        self.set_repeat(REPEAT_CYCLE[self.queue.repeat])
+
+    def set_repeat(self, mode):
+        self.queue.set_repeat(mode if mode in REPEAT_CYCLE else REPEAT_OFF)
         self._queue_changed()
 
     def _queue_changed(self):
-        self.player.set_next(self.queue.peek())
+        self.player.set_next(self.upcoming())
         self.bar.show_modes(self.queue.shuffle, self.queue.repeat)
         if self.stack.get_visible_child_name() == "queue":
             self.queue_view.render(self.queue, self.library)
         self.save_session()
+        self.system.changed("LoopStatus", "Shuffle", "CanGoNext", "CanGoPrevious")
 
     def play_next(self, paths):
         if not self.player.path and not len(self.queue):
@@ -539,7 +636,22 @@ class MusicPage(Gtk.Box):
         if self.since_save >= SAVE_EVERY:
             self.since_save = 0.0
             self.save_position(position)
+            self.save_resume(position)
+        if self.sleep_deadline and now >= self.sleep_deadline:
+            self._sleep_now()
         return GLib.SOURCE_CONTINUE
+
+    def save_resume(self, position=None):
+        """Remember where long tracks stopped (set back to 0 when they end)."""
+        track = self.library.get(self.current_path) if self.current_path else None
+        if track is None or track.duration < LONG_TRACK:
+            return
+        if position is None:
+            position = self.player.position()[0]
+        try:
+            self.music.set_resume_position(track.path, position if position < track.duration - 30 else 0)
+        except sqlite3.Error:
+            pass
 
     # ── session ─────────────────────────────────────────────────────────────────
     def save_position(self, position=None):
@@ -568,7 +680,7 @@ class MusicPage(Gtk.Box):
             self.player.load(current, play=False, start=seconds)
         except ValueError:
             return
-        self.track_started(current)
+        self.track_started(current, announce=False)
 
     # ── library ─────────────────────────────────────────────────────────────────
     def reload_library(self):
@@ -773,6 +885,47 @@ class MusicPage(Gtk.Box):
         if save:
             self.store.set_setting("music.grayscale_covers", bool(active))
 
+    # ── window, files and preferences ──────────────────────────────────────────
+    def present(self):
+        self.window.present()
+
+    def show_preferences(self):
+        show_preferences(self.window, self)
+
+    def open_files(self, paths):
+        """Files opened from a file manager or the command line: play them right away."""
+        wanted = [p for p in paths if p and ("://" in p or Path(p).is_file() or Path(p).is_dir())]
+        if not wanted:
+            return
+
+        def work():
+            files = []
+            for path in wanted:
+                if "://" in path:
+                    files.append(path)
+                elif Path(path).is_dir():
+                    files += scan_music_folder(path)[1]
+                elif Path(path).suffix.casefold() in AUDIO_EXTENSIONS:
+                    files.append(str(Path(path).resolve()))
+            known = {p for p in files if self.library.get(p)}
+            return files, read_changes([p for p in files if p not in known and "://" not in p], {})
+
+        def done(result, error):
+            if self.closed:
+                return
+            if error or not result or not result[0]:
+                self.notify(error or "Nenhum arquivo de áudio para tocar.")
+                return
+            files, metas = result
+            self.library.add_external(metas)
+            self.play_paths(files, 0, shuffle=False)
+            self.show_view("now")
+        background(work, done)
+
+    def keep_running(self):
+        """Closing the window keeps the music going (MPRIS and media keys still work)."""
+        return bool(self.player.playing and self.store.setting("music.keep_playing", True))
+
     # ── page protocol used by app.Window ───────────────────────────────────────
     def notify(self, text):
         self.window.notify(text)
@@ -784,7 +937,9 @@ class MusicPage(Gtk.Box):
         if self.closed:
             return
         self.finish_listen(automatic=False)
+        self.save_resume()
         self.save_session()
+        self.system.close()
         if self.volume_timer:
             self._save_volume()
         self.closed = True

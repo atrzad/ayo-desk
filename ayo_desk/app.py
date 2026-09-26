@@ -39,6 +39,7 @@ class Window(Adw.ApplicationWindow):
         self.standalone = standalone
         self.allowed_pages = (page,) if standalone else SYSTEM_PAGES
         self.closed = False
+        self.force_quit = False
         self.rows = {}
         self.overlay = Adw.ToastOverlay()
         self.set_content(self.overlay)
@@ -117,9 +118,17 @@ class Window(Adw.ApplicationWindow):
         if not self.closed:
             self.overlay.add_toast(Adw.Toast(title=str(message), timeout=7))
 
+    def quit_app(self):
+        """Close for real, even if a page would rather keep running in the background."""
+        self.force_quit = True
+        self.close()
+
     def _closing(self, *_):
         if self.closed:
             return False
+        if not self.force_quit and any(getattr(page, "keep_running", lambda: False)() for page in self.pages.values()):
+            self.set_visible(False)  # e.g. music keeps playing; launching the app again shows the window
+            return True
         self.closed = True
         for page in self.pages.values():
             page.close()
@@ -147,7 +156,7 @@ class Application(Adw.Application):
         provider.load_from_path(str(ROOT / "data/style.css"))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         quit_action = Gio.SimpleAction.new("quit", None)
-        quit_action.connect("activate", lambda *_: self.window.close() if self.window else self.quit())
+        quit_action.connect("activate", lambda *_: self.window.quit_app() if self.window else self.quit())
         self.add_action(quit_action)
         self.set_accels_for_action("app.quit", ["<Primary>q"])
 
@@ -166,4 +175,21 @@ class Application(Adw.Application):
             return 2
         self.page = requested
         self.activate()
+        files = [command_line.create_file_for_arg(arg).get_path() or arg for arg in file_arguments(command_line)]
+        page = self.window.pages.get(self.page) if self.window else None
+        if files and hasattr(page, "open_files"):
+            page.open_files(files)
         return 0
+
+
+def file_arguments(command_line):
+    """Positional arguments (files or URIs) left after --page/--standalone."""
+    args, result, skip = command_line.get_arguments()[1:], [], False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in ("--page", "-p"):
+            skip = True
+        elif not arg.startswith("-"):
+            result.append(arg)
+    return result

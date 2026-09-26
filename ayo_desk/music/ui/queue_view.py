@@ -1,8 +1,11 @@
-"""The play queue: what played, what is playing and what comes next."""
-from gi.repository import Adw, Gtk
+"""The play queue: what played, what is playing and what comes next (drag rows to reorder)."""
+from gi.repository import Adw, Gdk, GObject, Gtk
 
+from ..queue import SHUFFLE_ALBUMS, SHUFFLE_OFF, SHUFFLE_TRACKS
 from .covers import Cover
 from .model import duration_text
+
+ORDERS = ((SHUFFLE_OFF, "Na ordem"), (SHUFFLE_TRACKS, "Músicas aleatórias"), (SHUFFLE_ALBUMS, "Álbuns aleatórios"))
 
 
 class QueueView(Gtk.Box):
@@ -18,7 +21,14 @@ class QueueView(Gtk.Box):
         titles.append(title)
         titles.append(self.summary)
         top.append(titles)
-        self.clear = Gtk.Button(label="Limpar próximas", valign=Gtk.Align.CENTER)
+        self.syncing = False
+        self.order = Gtk.DropDown.new_from_strings([name for _mode, name in ORDERS])
+        self.order.set_valign(Gtk.Align.CENTER)
+        self.order.set_tooltip_text("Ordem de reprodução")
+        self.order.connect("notify::selected", self._order_changed)
+        top.append(self.order)
+        self.clear = Gtk.Button(icon_name="edit-clear-all-symbolic", tooltip_text="Limpar as próximas músicas",
+                                valign=Gtk.Align.CENTER)
         self.clear.connect("clicked", lambda _b: controller.clear_upcoming())
         top.append(self.clear)
         self.append(top)
@@ -34,7 +44,33 @@ class QueueView(Gtk.Box):
         self.stack.add_named(scroll, "list")
         self.append(self.stack)
 
+    def _order_changed(self, dropdown, _pspec):
+        if not self.syncing:
+            self.controller.set_shuffle_mode(ORDERS[dropdown.get_selected()][0])
+
+    def _draggable(self, row, position):
+        """Rows after the current one can be dragged; any row accepts a drop."""
+        if position > self.current:
+            source = Gtk.DragSource(actions=Gdk.DragAction.MOVE)
+            source.connect("prepare", lambda _s, _x, _y: Gdk.ContentProvider.new_for_value(
+                GObject.Value(GObject.TYPE_INT, position)))
+            source.connect("drag-begin", lambda src, _drag: src.set_icon(Gtk.WidgetPaintable.new(row), 0, 0))
+            row.add_controller(source)
+        target = Gtk.DropTarget.new(GObject.TYPE_INT, Gdk.DragAction.MOVE)
+        target.connect("drop", lambda _t, value, _x, _y: self._dropped(value, position))
+        row.add_controller(target)
+
+    def _dropped(self, source, target):
+        target = max(target, self.current + 1)  # nothing moves above what is playing
+        if source != target:
+            self.controller.move_in_queue(source, target)
+        return True
+
     def render(self, queue, library):
+        self.syncing = True
+        self.order.set_selected(next(n for n, (mode, _name) in enumerate(ORDERS) if mode == queue.shuffle))
+        self.syncing = False
+        self.current = queue.index
         while child := self.list.get_first_child():
             self.list.remove(child)
         items = queue.items()
@@ -70,4 +106,8 @@ class QueueView(Gtk.Box):
                 remove.add_css_class("flat")
                 remove.connect("clicked", lambda _b, p=position: self.controller.remove_from_queue(p))
                 row.add_suffix(remove)
+                handle = Gtk.Image(icon_name="list-drag-handle-symbolic", tooltip_text="Arraste para reordenar")
+                handle.add_css_class("dim-label")
+                row.add_prefix(handle)
+            self._draggable(row, position)
             self.list.append(row)

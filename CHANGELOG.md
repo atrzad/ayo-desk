@@ -8,6 +8,10 @@
 - Motor de reprodução com gapless, fila com tocar a seguir, aleatório sem repetição e repetir uma.
 - Sessão retomada ao abrir, contagem de reproduções/pulos e favoritas.
 - Migrações versionadas do banco de dados e tabela de preferências.
+- MPRIS (teclas de mídia, playerctl, Waybar), notificações de troca de música e reprodução em segundo plano.
+- Fila com arrastar para reordenar e álbuns aleatórios; atalhos de teclado; timer de sono com fade-out.
+- Velocidade de 0,5× a 2× mantendo o tom, escolha do dispositivo de saída e retomada de faixas longas.
+- Abrir arquivos pelo gerenciador de arquivos ou pela linha de comando.
 
 ## 0.1.2
 

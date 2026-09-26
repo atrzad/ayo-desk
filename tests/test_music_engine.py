@@ -84,6 +84,37 @@ class PlayerTests(unittest.TestCase):
         finally:
             player.close()
 
+    def test_speed_keeps_running_and_survives_seek(self):
+        track = make_audio(Path(self.temp.name) / "rapida.wav", seconds=3)
+        player = self.player()
+        try:
+            player.set_rate(1.5)
+            player.load(track)
+            self.assertTrue(pump(lambda: player.position()[0] > 0.3))
+            start, began = player.position()[0], time.monotonic()
+            self.assertTrue(pump(lambda: player.position()[0] - start >= 0.6, 3))
+            elapsed = time.monotonic() - began
+            self.assertLess(elapsed, 0.6 / 1.2, "1,5× deve andar mais rápido que o relógio")
+            self.assertTrue(player.seek(0.5))
+            self.assertEqual(player.rate, 1.5)
+            player.set_rate(9)
+            self.assertEqual(player.rate, 2.0)
+        finally:
+            player.close()
+
+    def test_fade_out_then_pause(self):
+        track = make_audio(Path(self.temp.name) / "fade.wav", seconds=3)
+        player = self.player()
+        try:
+            player.load(track)
+            player.set_playing(False, fade=0.2)
+            self.assertFalse(player.playing)
+            self.assertTrue(pump(lambda: player._fade == 1.0 and not player._fade_source, 2))
+            _ok, state, _pending = player.playbin.get_state(Gst.SECOND)
+            self.assertEqual(state, Gst.State.PAUSED)
+        finally:
+            player.close()
+
     def test_missing_file_is_reported(self):
         player = self.player()
         try:

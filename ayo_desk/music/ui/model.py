@@ -135,6 +135,7 @@ class Library:
         self.genres = Gio.ListStore(item_type=Group)
         self.folders = Gio.ListStore(item_type=Group)
         self.by_path = {}
+        self.external = {}
         self.album_by_key = {}
         self.artist_by_name = {}
         self.position = {}
@@ -152,7 +153,7 @@ class Library:
             else:
                 track.update(row)
             items.append(track)
-        self.by_path = {track.path: track for track in items}
+        self.by_path = {**self.external, **{track.path: track for track in items}}
         self.position = {track.path: n for n, track in enumerate(items)}
         self._group(items)
         self.tracks.splice(0, self.tracks.get_n_items(), items)
@@ -238,6 +239,14 @@ class Library:
         for store, groups in ((self.albums, album_items), (self.artists, artist_items),
                               (self.genres, genre_items), (self.folders, folder_items)):
             store.splice(0, store.get_n_items(), groups)
+
+    def add_external(self, rows):
+        """Tracks played from outside the library: known for display, not listed in any view."""
+        for row in rows:
+            if row["path"] not in self.by_path:
+                track = Track(row)
+                track.album_key = album_key(track)
+                self.external[track.path] = self.by_path[track.path] = track
 
     def get(self, path):
         return self.by_path.get(path)

@@ -36,6 +36,7 @@ temp = tempfile.TemporaryDirectory(prefix="ayo-smoke-")
 os.environ["XDG_DATA_HOME"] = temp.name
 os.environ["XDG_CACHE_HOME"] = str(Path(temp.name) / "cache")
 os.environ["AYO_MUSIC_SINK"] = "fakesink"
+os.environ["AYO_NO_MPRIS"] = "1"  # don't show the test player in the real desktop's media widgets
 
 from ayo_desk.app import Application, PAGES
 from ayo_desk.core import Store
@@ -186,6 +187,21 @@ def inspect():
                 page.search_entry.set_text(text)
                 page.on_search(page.search_entry)  # the entry itself waits a moment before searching
                 assert page.songs.table.count() == expected, (text, page.songs.table.count())
+            page.enqueue([str(first), str(second)])
+            assert page.queue.items() == [str(second), str(first), str(second)]
+            page.move_in_queue(2, 1)
+            assert page.queue.items() == [str(second), str(second), str(first)]
+            page.show_view("queue")
+            page.set_sleep(15)
+            assert "15 min" in page.sleep_text()
+            page.set_sleep(None)
+            page.set_rate(1.25)
+            assert page.player.rate == 1.25 and window.store.setting("music.rate") == 1.25
+            page.set_rate(1.0)
+            assert page.keep_running(), "Fechar a janela tocando deve manter a música"
+            window.close()
+            assert not window.get_visible() and not window.closed
+            window.present()
         print(f"PASS UI: {key} ({application_id})", flush=True)
     except Exception:
         exception_hook(*sys.exc_info())
@@ -209,7 +225,7 @@ def next_page():
             return GLib.SOURCE_REMOVE
         GLib.timeout_add(1800, inspect)
     else:
-        app.window.close()
+        app.window.quit_app()
         app.quit()
     return GLib.SOURCE_REMOVE
 

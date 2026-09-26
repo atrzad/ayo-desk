@@ -103,6 +103,20 @@ def show_preferences(parent, controller):
     looks.add(grayscale)
     page.add(looks)
 
+    playback = Adw.PreferencesGroup(title="Reprodução")
+    for key, title, subtitle, default in (
+            ("music.keep_playing", "Continuar tocando ao fechar a janela",
+             "A música segue e pode ser controlada pelas teclas de mídia. Ctrl+Q encerra de vez.", True),
+            ("music.notify", "Avisar quando a música mudar",
+             "Mostra uma notificação com a capa quando a janela não está em foco.", True),
+            ("music.resume_long", "Retomar faixas longas de onde parou",
+             "Para faixas com mais de 20 minutos, como audiolivros, podcasts e sets.", True)):
+        row = Adw.SwitchRow(title=title, subtitle=subtitle)
+        row.set_active(store.setting(key, default))
+        row.connect("notify::active", lambda widget, _p, k=key: store.set_setting(k, widget.get_active()))
+        playback.add(row)
+    page.add(playback)
+
     library = Adw.PreferencesGroup(title="Biblioteca")
     folder = store.music_folder()
     folder_row = Adw.ActionRow(title="Pasta de músicas", subtitle=folder or "Nenhuma pasta escolhida",
