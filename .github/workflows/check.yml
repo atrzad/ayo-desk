@@ -15,7 +15,7 @@ jobs:
         run: >
           pacman -Syu --noconfirm --needed
           gcc make python python-gobject gtk4 libadwaita libnm
-          gstreamer gst-plugins-base gst-plugins-good
+          gstreamer gst-plugins-base gst-plugins-good python-mutagen dbus
       - uses: actions/checkout@v4
       - name: Compile native library
         run: make

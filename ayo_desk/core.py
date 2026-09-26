@@ -1,9 +1,11 @@
 """Persistent local data and the calculator's C ABI; no graphical dependencies."""
 import ctypes
 import datetime as dt
+import json
 import os
 from pathlib import Path
 import sqlite3
+from .migrations import migrate
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -36,21 +38,16 @@ class Store:
         if str(path) != ":memory:":
             os.chmod(path, 0o600)
         self.db.row_factory = sqlite3.Row
-        self.db.executescript("""
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY, day TEXT NOT NULL, time TEXT NOT NULL,
-                title TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '');
-            CREATE INDEX IF NOT EXISTS event_day ON events(day, time);
-            CREATE TABLE IF NOT EXISTS history (
-                id INTEGER PRIMARY KEY, created TEXT NOT NULL,
-                category TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS tracks (
-                id INTEGER PRIMARY KEY, path TEXT UNIQUE NOT NULL);
-            CREATE TABLE IF NOT EXISTS music_library (
-                id INTEGER PRIMARY KEY CHECK(id=1), folder TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS music_folder_tracks (path TEXT PRIMARY KEY);
-            CREATE TABLE IF NOT EXISTS music_exclusions (path TEXT PRIMARY KEY);
-        """)
+        migrate(self.db)
+
+    def setting(self, key, default=None):
+        record = self.db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return json.loads(record[0]) if record else default
+
+    def set_setting(self, key, value):
+        with self.db:
+            self.db.execute("INSERT INTO settings(key,value) VALUES(?,?) "
+                            "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, json.dumps(value)))
 
     def save_event(self, day, time, title, notes="", event_id=None):
         day = dt.date.fromisoformat(day).isoformat()

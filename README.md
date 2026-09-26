@@ -18,7 +18,7 @@ Ferramentas nativas para Arch Linux, feitas em **Python + GTK4/libadwaita**, com
 Use o Python do sistema; PyGObject vem do pacote `python-gobject`, sem necessidade de pip ou venv.
 
 ```sh
-sudo pacman -S --needed base-devel python python-gobject gtk4 libadwaita libnm networkmanager libpulse bluez gstreamer gst-plugins-base gst-plugins-good gst-libav dnsmasq
+sudo pacman -S --needed base-devel python python-gobject gtk4 libadwaita libnm networkmanager libpulse bluez gstreamer gst-plugins-base gst-plugins-good gst-libav dnsmasq python-mutagen
 ```
 
 O controle de áudio requer um servidor PulseAudio ou PipeWire com `pipewire-pulse` já configurado. O Ayo não substitui automaticamente seu servidor de áudio ou gerenciador de rede. NetworkManager e bluetooth.service precisam estar ativos; o aplicativo mostra quando estão indisponíveis. No Hyprland, mantenha um agente de autenticação Polkit funcionando para operações que exigem autorização.

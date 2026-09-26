@@ -13,6 +13,9 @@ REQUIRED_COMMANDS = {
     "dnsmasq": "NetworkManager / compartilhamento RJ45",
 }
 REQUIRED_MODULES = {"gi": "PyGObject"}
+OPTIONAL_MODULES = {"mutagen": "python-mutagen / tags, capas e letras das músicas"}
+# Elementos GStreamer usados pelo Ayo Música (gst-plugins-base e gst-plugins-good).
+GST_ELEMENTS = ("playbin", "equalizer-10bands", "rgvolume", "rglimiter", "scaletempo", "level", "spectrum")
 
 
 def service_active(service):
@@ -32,6 +35,13 @@ def main():
         found = importlib.util.find_spec(module) is not None
         print(f"{'OK' if found else 'FALTA':5} Python {module:12} {purpose}")
         failed |= not found
+    for module, purpose in OPTIONAL_MODULES.items():
+        found = importlib.util.find_spec(module) is not None
+        print(f"{'OK' if found else 'AVISO':5} Python {module:12} {purpose}")
+    missing = [name for name in GST_ELEMENTS if shutil.which("gst-inspect-1.0") and subprocess.run(
+        ["gst-inspect-1.0", "--exists", name], check=False).returncode != 0]
+    print(f"{'OK' if not missing else 'AVISO':5} {'GStreamer':18} "
+          + ("efeitos de áudio disponíveis" if not missing else "faltam: " + ", ".join(missing)))
     for service in ("NetworkManager", "bluetooth"):
         active = service_active(service)
         print(f"{'OK' if active else 'AVISO':5} {service:18} {'ativo' if active else 'não está ativo'}")

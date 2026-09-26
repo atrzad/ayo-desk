@@ -6,7 +6,7 @@ import threading
 import unittest
 
 from ayo_desk.core import Store
-from ayo_desk.music_library import scan_music_folder
+from ayo_desk.music.library import scan_music_folder
 
 
 class MusicLibraryTests(unittest.TestCase):

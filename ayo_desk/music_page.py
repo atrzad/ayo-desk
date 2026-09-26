@@ -3,7 +3,7 @@ import random
 import sqlite3
 import threading
 from gi.repository import Gio, GLib, Gtk
-from .music_library import AUDIO_EXTENSIONS, scan_music_folder
+from .music.library import AUDIO_EXTENSIONS, scan_music_folder
 from .player import Player
 from .tasks import background
 from .widgets import Page, button, clear, group, label, row
