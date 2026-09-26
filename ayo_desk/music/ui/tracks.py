@@ -1,14 +1,29 @@
 """Sortable track table (Gtk.ColumnView) shared by every view that lists songs."""
-from gi.repository import Gdk, Gio, GLib, Gtk, Pango
+from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango
 
 from .. import tags
 from .model import Track, duration_text, track_order
 
 STARS = "★★★★★"
+DRAG_PREFIX = "ayo-tracks"
 
 
 def stars(rating):
     return STARS[:rating] + "☆" * (5 - rating) if rating else ""
+
+
+def drag_payload(table, positions, paths):
+    """Tracks dragged out of a table: travels as text, so any Ayo drop target can read it."""
+    return "\n".join([DRAG_PREFIX, str(id(table)), ",".join(map(str, positions)), *paths])
+
+
+def parse_payload(text):
+    """(source table id, positions, paths) or None for text that is not a track drag."""
+    lines = str(text or "").split("\n")
+    if len(lines) < 4 or lines[0] != DRAG_PREFIX:
+        return None
+    positions = [int(n) for n in lines[2].split(",") if n.strip().isdigit()]
+    return int(lines[1]), positions, [line for line in lines[3:] if line]
 
 
 def _key(values):
@@ -20,6 +35,7 @@ def _key(values):
 
 # name: (title, fixed width or None for expand, text, sort key, extra css)
 COLUMNS = {
+    "index": ("#", 52, None, None, "numeric"),  # position in a playlist
     "number": ("#", 52, lambda t: str(t.track_no or ""), lambda t: track_order(t), "numeric"),
     "title": ("Título", None, lambda t: t.title, lambda t: (tags.fold(t.title), t.path), None),
     "artist": ("Artista", None, lambda t: t.display_artist,
@@ -40,9 +56,11 @@ ALBUM_COLUMNS = ("number", "title", "artist", "duration", "plays", "rating")
 class TrackTable(Gtk.Box):
     """`model` is any Gio.ListModel of Track. With scroll=False it grows to fit (album pages)."""
 
-    def __init__(self, controller, model=None, columns=LIBRARY_COLUMNS, scroll=True, sortable=True):
+    def __init__(self, controller, model=None, columns=LIBRARY_COLUMNS, scroll=True, sortable=True, reorder=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, vexpand=scroll)
         self.controller = controller
+        self.reorder = reorder      # callback(positions, target) for tables whose order matters (playlists)
+        self.playlist_id = None
         self.base = model if model is not None else Gio.ListStore(item_type=Track)
         self.filter = Gtk.CustomFilter.new(self._matches, None)
         self.terms = []
@@ -89,7 +107,7 @@ class TrackTable(Gtk.Box):
             column.set_fixed_width(width)
         else:
             column.set_expand(True)
-        if sortable:
+        if sortable and sort_key:
             column.set_sorter(_key(sort_key))
         self.view.append_column(column)
         return column
@@ -104,8 +122,8 @@ class TrackTable(Gtk.Box):
         label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, hexpand=True, single_line_mode=True)
         if css:
             label.add_css_class(css)
-        if name in ("number", "duration", "plays", "year"):
-            label.set_xalign(1 if name != "number" else 0.5)
+        if name in ("number", "index", "duration", "plays", "year"):
+            label.set_xalign(0.5 if name in ("number", "index") else 1)
         box.append(label)
         box.label = label
         box.cell = cell
@@ -115,11 +133,23 @@ class TrackTable(Gtk.Box):
         press = Gtk.GestureLongPress()
         press.connect("pressed", lambda gesture, x, y, widget=box: self._context_menu(gesture, 1, x, y, widget))
         box.add_controller(press)
+        drag = Gtk.DragSource(actions=Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
+        drag.connect("prepare", self._drag_prepare, box)
+        box.add_controller(drag)
+        if self.reorder is not None or self.playlist_id is not None:
+            drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
+            drop.connect("drop", self._dropped, box)
+            box.add_controller(drop)
         cell.set_child(box)
 
     def _bind(self, _factory, cell, name, text):
         box, track = cell.get_child(), cell.get_item()
-        box.label.set_text(text(track) or "")
+        box.label.set_text(str(cell.get_position() + 1) if text is None else text(track) or "")
+        if getattr(track, "missing", False):
+            box.add_css_class("missing-track")
+            box.set_tooltip_text("Arquivo fora da biblioteca: " + track.path)
+        else:
+            box.remove_css_class("missing-track")
         playing = track.path == self.controller.current_path
         if name == "title":
             box.icon.set_visible(playing)
@@ -136,7 +166,37 @@ class TrackTable(Gtk.Box):
         position = widget.cell.get_position()
         if not self.selection.is_selected(position):
             self.selection.select_item(position, True)
-        self.controller.show_track_menu(self.selected_tracks() or [track], widget, x, y)
+        self.controller.show_track_menu(self.selected_tracks() or [track], widget, x, y, table=self)
+
+    def _drag_prepare(self, _source, _x, _y, box):
+        position = box.cell.get_position()
+        if box.cell.get_item() is None:
+            return None
+        if not self.selection.is_selected(position):
+            self.selection.select_item(position, True)
+        bitset = self.selection.get_selection()
+        positions = [bitset.get_nth(n) for n in range(bitset.get_size())]
+        paths = [self.sorted.get_item(n).path for n in positions]
+        return Gdk.ContentProvider.new_for_value(GObject.Value(GObject.TYPE_STRING,
+                                                              drag_payload(self, positions, paths)))
+
+    def _dropped(self, _target, value, _x, y, box):
+        payload = parse_payload(value)
+        if payload is None:
+            return False
+        source, positions, paths = payload
+        target = box.cell.get_position()
+        if y > box.get_height() / 2:
+            target += 1  # lower half of a row: drop after it
+        if source == id(self) and self.reorder is not None:
+            self.reorder(positions, target)
+        elif self.playlist_id is not None:
+            self.controller.add_to_playlist(self.playlist_id, paths, at=target)
+        return True
+
+    def selected_positions(self):
+        bitset = self.selection.get_selection()
+        return [bitset.get_nth(n) for n in range(bitset.get_size())]
 
     def selected_tracks(self):
         bitset = self.selection.get_selection()

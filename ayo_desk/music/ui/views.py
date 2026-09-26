@@ -22,12 +22,13 @@ def count_text(tracks):
 def play_buttons(on_play, on_shuffle):
     box = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER)
     play = Gtk.Button(label="Tocar")
-    play.set_child(Adw.ButtonContent(icon_name="media-playback-start-symbolic", label="Tocar"))
+    play.set_child(Adw.ButtonContent(icon_name="media-playback-start-symbolic", label="Tocar", can_shrink=True))
     play.add_css_class("suggested-action")
     play.add_css_class("pill")
     play.connect("clicked", lambda _b: on_play())
     shuffle = Gtk.Button()
-    shuffle.set_child(Adw.ButtonContent(icon_name="media-playlist-shuffle-symbolic", label="Aleatório"))
+    shuffle.set_child(Adw.ButtonContent(icon_name="media-playlist-shuffle-symbolic", label="Aleatório",
+                                        can_shrink=True))
     shuffle.add_css_class("pill")
     shuffle.connect("clicked", lambda _b: on_shuffle())
     box.append(play)
@@ -53,7 +54,8 @@ class Header(Gtk.Box):
         self.subtitle_label = label("", "title-4")
         self.subtitle.set_child(self.subtitle_label)
         self.meta = label("", "dim-label")
-        self.actions = Gtk.Box(spacing=8, margin_top=10)
+        # Wraps under narrow widths instead of forcing the window wider.
+        self.actions = Adw.WrapBox(child_spacing=8, line_spacing=8, margin_top=10)
         for widget in (self.kind, self.title, self.subtitle, self.meta, self.actions):
             info.append(widget)
         self.append(info)

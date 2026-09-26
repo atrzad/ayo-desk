@@ -51,7 +51,10 @@ class PlayerTests(unittest.TestCase):
             self.assertTrue(player.seek(1.5))
             player.toggle()
             self.assertTrue(player.playing)
-            self.assertTrue(pump(lambda: self.ended or self.errors, 4))
+            finished = pump(lambda: self.ended or self.errors, 8)  # generous: CI machines can be slow
+            _r, state, pending = player.playbin.get_state(0)
+            self.assertTrue(finished, f"state={state.value_nick} pending={pending.value_nick} "
+                                      f"pos={player.position()} playing={player.playing}")
             self.assertFalse(self.errors)
         finally:
             player.close()

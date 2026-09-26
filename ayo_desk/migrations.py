@@ -63,6 +63,22 @@ MIGRATIONS = (
         id INTEGER PRIMARY KEY, path TEXT NOT NULL, played_at TEXT NOT NULL, seconds REAL NOT NULL);
     CREATE INDEX music_plays_time ON music_plays(played_at);
     """,
+    # 3 — playlists (manual now; `rules` holds smart playlist definitions as JSON).
+    """
+    CREATE TABLE playlists (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'manual' CHECK(kind IN ('manual', 'smart')),
+        rules TEXT NOT NULL DEFAULT '',
+        created TEXT NOT NULL,
+        updated TEXT NOT NULL);
+    CREATE TABLE playlist_items (
+        playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        path TEXT NOT NULL,
+        PRIMARY KEY (playlist_id, position));
+    CREATE INDEX playlist_items_path ON playlist_items(path);
+    """,
 )
 
 

@@ -12,18 +12,21 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 from ... import __version__
 from ...tasks import background
 from .. import covers as cover_cache
-from .. import tags
+from .. import m3u, tags
 from ..db import MusicDB
 from ..engine import Player
 from ..library import AUDIO_EXTENSIONS, read_changes, scan_music_folder
 from ..queue import REPEAT_CYCLE, REPEAT_OFF, SHUFFLE_OFF, SHUFFLE_TRACKS, PlayQueue
+from ...widgets import confirm
 from .dialogs import open_containing_folder, show_about, show_preferences, show_properties
 from .integration import Integration
 from .model import Library, artist_names
 from .now_playing import NowPlaying
 from .playback_menu import PlaybackMenu
+from .playlists import PlaylistView, ask_name
 from .player_bar import PlayerBar
 from .queue_view import QueueView
+from .tracks import parse_payload
 from .views import AlbumsView, SongsView, album_page, artist_page, artists_view, folders_view, genres_view
 
 SECTIONS = (
@@ -105,9 +108,11 @@ class MusicPage(Gtk.Box):
         self.artists = artists_view(self)
         self.genres = genres_view(self)
         self.folders = folders_view(self)
+        self.playlist_view = PlaylistView(self)
         for name, widget in (("now", self.now_view), ("queue", self.queue_view), ("songs", self.songs),
                              ("albums", self.albums), ("artists", self.artists), ("genres", self.genres),
-                             ("folders", self.folders), ("welcome", self._build_welcome())):
+                             ("folders", self.folders), ("playlist", self.playlist_view),
+                             ("welcome", self._build_welcome())):
             self.stack.add_named(widget, name)
         self._add_breakpoints()
         drop = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
@@ -121,6 +126,7 @@ class MusicPage(Gtk.Box):
         if not self.player.available:
             self.notify("Faltam codecs de áudio. Instale gst-plugins-base, gst-plugins-good e gst-libav.")
         self.reload_library()
+        self.refresh_playlists()
         self.restore_session()
         self.show_view("songs" if self.library.tracks.get_n_items() else "welcome")
         self.timer = GLib.timeout_add(500, self.tick)
@@ -132,7 +138,11 @@ class MusicPage(Gtk.Box):
         self.actions = Gio.SimpleActionGroup()
         simple = {"choose-folder": self.choose_folder, "add-files": self.add_files, "rescan": self.scan,
                   "preferences": self.show_preferences, "shortcuts": lambda: self.system.show_shortcuts(), "search": self.toggle_search,
-                  "about": lambda: show_about(self.window, __version__)}
+                  "about": lambda: show_about(self.window, __version__),
+                  "new-playlist": lambda: self.new_playlist([]), "import-playlist": self.import_playlist,
+                  "save-queue": lambda: self.new_playlist(self.queue.items()),
+                  "playlist-rename": self.rename_playlist, "playlist-delete": self.delete_playlist,
+                  "playlist-export": self.export_playlist}
         for name, callback in simple.items():
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", lambda _a, _p, c=callback: c())
@@ -142,9 +152,15 @@ class MusicPage(Gtk.Box):
                       "go-artist": lambda p: self.open_artist(self.library.get(p[0]).display_artist),
                       "properties": lambda p: show_properties(self.window, self.library.get(p[0])),
                       "open-folder": lambda p: open_containing_folder(self.window, p[0]),
-                      "remove": self.remove}
+                      "remove": self.remove, "new-playlist-with": self.new_playlist}
         for name, callback in with_paths.items():
             action = Gio.SimpleAction.new(name, GLib.VariantType.new("as"))
+            action.connect("activate", lambda _a, value, c=callback: c(value.unpack()))
+            self.actions.add_action(action)
+        for name, signature, callback in (
+                ("add-to-playlist", "(xas)", lambda value: self.add_to_playlist(*value)),
+                ("remove-from-playlist", "(xax)", lambda value: self.remove_from_playlist(*value))):
+            action = Gio.SimpleAction.new(name, GLib.VariantType.new(signature))
             action.connect("activate", lambda _a, value, c=callback: c(value.unpack()))
             self.actions.add_action(action)
         self.window.insert_action_group("music", self.actions)
@@ -165,6 +181,10 @@ class MusicPage(Gtk.Box):
         library.append("Adicionar arquivos…", "music.add-files")
         library.append("Atualizar biblioteca", "music.rescan")
         menu.append_section(None, library)
+        playlists = Gio.Menu()
+        playlists.append("Nova playlist…", "music.new-playlist")
+        playlists.append("Importar playlist (M3U)…", "music.import-playlist")
+        menu.append_section(None, playlists)
         other = Gio.Menu()
         other.append("Preferências", "music.preferences")
         other.append("Atalhos do teclado", "music.shortcuts")
@@ -180,13 +200,7 @@ class MusicPage(Gtk.Box):
         self.rows = {}
         for section, entries in SECTIONS:
             for key, title, icon in entries:
-                row = Gtk.ListBoxRow()
-                content = Gtk.Box(spacing=12, margin_start=6, margin_end=6, margin_top=8, margin_bottom=8)
-                content.append(Gtk.Image(icon_name=icon))
-                content.append(Gtk.Label(label=title, xalign=0, hexpand=True))
-                row.set_child(content)
-                row.view = key
-                row.section = section
+                row = self._sidebar_row(key, title, icon, section)
                 self.rows[key] = row
                 self.navigation.append(row)
 
@@ -199,7 +213,8 @@ class MusicPage(Gtk.Box):
             else:
                 row.set_header(None)
         self.navigation.set_header_func(header)
-        self.navigation.connect("row-selected", lambda _l, row: row and self.show_view(row.view))
+        self.playlist_rows = []
+        self.navigation.connect("row-selected", self._row_selected)
         scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER, child=self.navigation)
         box.append(scroll)
         status = Gtk.Box(spacing=8, margin_start=14, margin_end=8, margin_top=6, margin_bottom=10)
@@ -265,11 +280,78 @@ class MusicPage(Gtk.Box):
         self.window.add_breakpoint(compact)
         self.split.bind_property("show-sidebar", self.sidebar_button, "active", BIND)
 
+    def _sidebar_row(self, key, title, icon, section):
+        row = Gtk.ListBoxRow()
+        content = Gtk.Box(spacing=12, margin_start=6, margin_end=6, margin_top=8, margin_bottom=8)
+        content.append(Gtk.Image(icon_name=icon))
+        label = Gtk.Label(label=title, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END)
+        content.append(label)
+        row.set_child(content)
+        row.view, row.section, row.label = key, section, label
+        return row
+
+    def _row_selected(self, _list, row):
+        if row is None:
+            return
+        if row.view == "new-playlist":
+            self.new_playlist([])
+            current = self.rows.get(self.stack.get_visible_child_name())
+            if self.stack.get_visible_child_name() == "playlist":
+                current = self.rows.get(f"playlist:{self.playlist_view.playlist_id}")
+            if current is not None:
+                self.navigation.select_row(current)
+            else:
+                self.navigation.unselect_all()
+            return
+        self.show_view(row.view)
+
+    def refresh_playlists(self):
+        """Rebuild the "Playlists" section of the sidebar (names, counts, drop targets)."""
+        for row in self.playlist_rows:
+            self.rows.pop(row.view, None)
+            self.navigation.remove(row)
+        self.playlist_rows = []
+        for playlist in self.music.playlists():
+            key = f"playlist:{playlist['id']}"
+            row = self._sidebar_row(key, playlist["name"], "media-playlist-consecutive-symbolic", "Playlists")
+            count = Gtk.Label(label=str(playlist["count"]))
+            count.add_css_class("dim-label")
+            count.add_css_class("caption")
+            row.get_child().append(count)
+            row.set_tooltip_text(f"{playlist['name']} — solte músicas aqui para adicionar")
+            drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.COPY)
+            drop.connect("drop", lambda _t, value, _x, _y, pid=playlist["id"]: self._drop_on_playlist(pid, value))
+            row.add_controller(drop)
+            self.rows[key] = row
+            self.playlist_rows.append(row)
+            self.navigation.append(row)
+        new = self._sidebar_row("new-playlist", "Nova playlist", "list-add-symbolic", "Playlists")
+        new.add_css_class("new-playlist-row")
+        self.playlist_rows.append(new)
+        self.navigation.append(new)
+        if self.stack.get_visible_child_name() == "playlist":
+            row = self.rows.get(f"playlist:{self.playlist_view.playlist_id}")
+            if row is not None:
+                self.navigation.select_row(row)
+
+    def _drop_on_playlist(self, playlist_id, value):
+        payload = parse_payload(value)
+        if payload is None:
+            return False
+        self.add_to_playlist(playlist_id, payload[2])
+        return True
+
     # ── navigation ──────────────────────────────────────────────────────────────
     def show_view(self, name):
-        if self.stack.get_child_by_name(name) is None:
+        if name.startswith("playlist:"):
+            self.playlist_view.show(int(name.split(":", 1)[1]))
+            if self.playlist_view.playlist_id is None:
+                return
+            self.stack.set_visible_child_name("playlist")
+        elif self.stack.get_child_by_name(name) is None:
             return
-        self.stack.set_visible_child_name(name)
+        else:
+            self.stack.set_visible_child_name(name)
         row = self.rows.get(name)
         if row is not None and self.navigation.get_selected_row() is not row:
             self.navigation.select_row(row)
@@ -312,8 +394,9 @@ class MusicPage(Gtk.Box):
         self.artists.pop_to_tag("list")
         self.artists.push(artist_page(self, group))
 
-    def show_track_menu(self, tracks, widget, x, y):
-        paths = GLib.Variant("as", [track.path for track in tracks])
+    def show_track_menu(self, tracks, widget, x, y, table=None):
+        path_list = [track.path for track in tracks]
+        paths = GLib.Variant("as", path_list)
         menu = Gio.Menu()
         play = Gio.Menu()
         for title, action in (("Tocar", "music.play"), ("Tocar a seguir", "music.play-next"),
@@ -322,6 +405,27 @@ class MusicPage(Gtk.Box):
             item.set_action_and_target_value(action, paths)
             play.append_item(item)
         menu.append_section(None, play)
+        playlists = Gio.Menu()
+        choices = Gio.Menu()
+        for playlist in self.music.playlists():
+            if playlist["kind"] != "manual":
+                continue
+            item = Gio.MenuItem.new(playlist["name"], None)
+            item.set_action_and_target_value("music.add-to-playlist",
+                                             GLib.Variant("(xas)", (playlist["id"], path_list)))
+            choices.append_item(item)
+        new = Gio.Menu()
+        item = Gio.MenuItem.new("Nova playlist…", None)
+        item.set_action_and_target_value("music.new-playlist-with", paths)
+        new.append_item(item)
+        choices.append_section(None, new)
+        playlists.append_submenu("Adicionar à playlist", choices)
+        if table is not None and table.playlist_id is not None:
+            item = Gio.MenuItem.new("Remover desta playlist", None)
+            item.set_action_and_target_value("music.remove-from-playlist",
+                                             GLib.Variant("(xax)", (table.playlist_id, table.selected_positions())))
+            playlists.append_item(item)
+        menu.append_section(None, playlists)
         if len(tracks) == 1:
             go = Gio.Menu()
             for title, action in (("Ir para o álbum", "music.go-album"), ("Ir para o artista", "music.go-artist"),
@@ -682,10 +786,149 @@ class MusicPage(Gtk.Box):
             return
         self.track_started(current, announce=False)
 
+    # ── playlists ───────────────────────────────────────────────────────────────
+    def show_playlist(self, playlist_id):
+        self.show_view(f"playlist:{playlist_id}")
+
+    def new_playlist(self, paths):
+        def create(name):
+            try:
+                playlist_id = self.music.create_playlist(name, paths)
+            except (ValueError, sqlite3.Error) as exc:
+                self.notify(str(exc))
+                return
+            self.refresh_playlists()
+            self.show_playlist(playlist_id)
+            if paths:
+                self.notify(f"Playlist criada com {len(paths)} música" + ("s" if len(paths) != 1 else ""))
+        ask_name(self.window, "Nova playlist", create)
+
+    def add_to_playlist(self, playlist_id, paths, at=None):
+        try:
+            added = self.music.add_to_playlist(playlist_id, paths, at=at)
+            name = self.music.playlist(playlist_id)["name"]
+        except (ValueError, sqlite3.Error) as exc:
+            self.notify(str(exc))
+            return
+        self.refresh_playlists()
+        if self.playlist_view.playlist_id == playlist_id:
+            self.playlist_view.reload()
+        if added == 0:
+            self.notify(f"Já está em “{name}”")
+        else:
+            self.notify(f"Adicionada a “{name}”" if added == 1 else f"{added} músicas adicionadas a “{name}”")
+
+    def remove_from_playlist(self, playlist_id, positions):
+        self.music.remove_from_playlist(playlist_id, positions)
+        self.refresh_playlists()
+        if self.playlist_view.playlist_id == playlist_id:
+            self.playlist_view.reload()
+
+    def rename_playlist(self):
+        playlist_id = self.playlist_view.playlist_id
+        if playlist_id is None:
+            return
+
+        def rename(name):
+            try:
+                self.music.rename_playlist(playlist_id, name)
+            except (ValueError, sqlite3.Error) as exc:
+                self.notify(str(exc))
+                return
+            self.refresh_playlists()
+            self.playlist_view.reload()
+        ask_name(self.window, "Renomear playlist", rename, self.music.playlist(playlist_id)["name"], "Renomear")
+
+    def delete_playlist(self):
+        playlist_id = self.playlist_view.playlist_id
+        if playlist_id is None:
+            return
+        name = self.music.playlist(playlist_id)["name"]
+
+        def delete():
+            self.music.delete_playlist(playlist_id)
+            self.playlist_view.playlist_id = None
+            self.refresh_playlists()
+            self.show_view("songs")
+        confirm(self.window, f"Excluir “{name}”?", "As músicas continuam na biblioteca e no disco; "
+                "só a playlist é apagada.", delete, "Excluir", destructive=True)
+
+    def export_playlist(self):
+        playlist_id = self.playlist_view.playlist_id
+        if playlist_id is None:
+            return
+        name = self.music.playlist(playlist_id)["name"]
+        dialog = Gtk.FileDialog(title="Exportar playlist", initial_name=f"{name}.m3u8")
+        folder = self.store.music_folder()
+        if folder and Path(folder).is_dir():
+            dialog.set_initial_folder(Gio.File.new_for_path(folder))
+
+        def chosen(source, result):
+            try:
+                target = source.save_finish(result).get_path()
+            except GLib.Error as exc:
+                if not exc.matches(Gtk.DialogError.quark(), Gtk.DialogError.DISMISSED):
+                    self.notify(str(exc))
+                return
+            entries = []
+            for path in self.music.playlist_paths(playlist_id):
+                track = self.library.get(path)
+                entries.append({"path": path, "duration": track.duration if track else None,
+                                "artist": track.display_artist if track else None,
+                                "title": track.title if track else None})
+            try:
+                m3u.write(target, entries)
+            except OSError as exc:
+                self.notify(f"Não foi possível salvar a playlist: {exc}")
+                return
+            self.notify(f"Playlist exportada para {Path(target).name}")
+        dialog.save(self.window, None, chosen)
+
+    def import_playlist(self):
+        dialog = Gtk.FileDialog(title="Importar playlist")
+        lists = Gtk.FileFilter(name="Playlists (M3U, M3U8, PLS)")
+        for suffix in ("m3u", "m3u8", "pls"):
+            lists.add_suffix(suffix)
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(lists)
+        dialog.set_filters(filters)
+        dialog.set_default_filter(lists)
+
+        def chosen(source, result):
+            try:
+                path = source.open_finish(result).get_path()
+            except GLib.Error as exc:
+                if not exc.matches(Gtk.DialogError.quark(), Gtk.DialogError.DISMISSED):
+                    self.notify(str(exc))
+                return
+            background(lambda: (Path(path).stem, m3u.read(path)), self._playlist_read)
+        dialog.open(self.window, None, chosen)
+
+    def _playlist_read(self, result, error):
+        if self.closed:
+            return
+        if error:
+            self.notify(f"Não foi possível ler a playlist: {error}")
+            return
+        name, entries = result
+        found = [e for e in entries if "://" in e or Path(e).is_file()]
+        outside = [e for e in found if "://" not in e and self.library.get(e) is None]
+        if outside:
+            self.store.add_tracks(outside)  # songs from elsewhere join the library, with tags
+            self.scan()
+        playlist_id = self.music.create_playlist(name, found)
+        self.refresh_playlists()
+        self.show_playlist(playlist_id)
+        missing = len(entries) - len(found)
+        self.notify(f"{len(found)} música" + ("s importadas" if len(found) != 1 else " importada")
+                    + (f" · {missing} não encontrada" + ("s" if missing != 1 else "") if missing else ""))
+
     # ── library ─────────────────────────────────────────────────────────────────
     def reload_library(self):
         self.library.load(self.music.library(), root=self.store.music_folder())
         self.update_status()
+        if self.playlist_view.playlist_id is not None:
+            self.playlist_view.reload()
         if self.current_path:
             self.bar.show_track(self.library.get(self.current_path), self.player)
             self.now_view.show_track(self.library.get(self.current_path), self.player)

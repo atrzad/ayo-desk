@@ -100,3 +100,91 @@ class MusicDB:
         with self.db:
             self._stats(path)
             self.db.execute("UPDATE music_stats SET resume_at=? WHERE path=?", (max(0.0, float(seconds)), path))
+
+    # ── playlists ──────────────────────────────────────────────────────────
+    def playlists(self):
+        return [dict(row) for row in self.db.execute(
+            "SELECT p.id, p.name, p.kind, p.rules, p.updated, COUNT(i.path) AS count FROM playlists p "
+            "LEFT JOIN playlist_items i ON i.playlist_id = p.id GROUP BY p.id ORDER BY p.name COLLATE NOCASE, p.id")]
+
+    def playlist(self, playlist_id):
+        row = self.db.execute("SELECT * FROM playlists WHERE id=?", (playlist_id,)).fetchone()
+        if row is None:
+            raise ValueError("Esta playlist não existe mais.")
+        return dict(row)
+
+    def _unique_name(self, name, ignore=None):
+        name = " ".join(str(name).split())
+        if not name:
+            raise ValueError("Dê um nome para a playlist.")
+        taken = {row[0].casefold() for row in self.db.execute("SELECT name FROM playlists WHERE id IS NOT ?", (ignore,))}
+        candidate, number = name, 2
+        while candidate.casefold() in taken:
+            candidate, number = f"{name} ({number})", number + 1
+        return candidate
+
+    def create_playlist(self, name, paths=(), kind="manual", rules=""):
+        stamp = now()
+        with self.db:
+            playlist_id = self.db.execute(
+                "INSERT INTO playlists(name, kind, rules, created, updated) VALUES(?,?,?,?,?)",
+                (self._unique_name(name), kind, rules, stamp, stamp)).lastrowid
+            self._write_items(playlist_id, list(paths))
+        return playlist_id
+
+    def rename_playlist(self, playlist_id, name):
+        self.playlist(playlist_id)
+        with self.db:
+            name = self._unique_name(name, ignore=playlist_id)
+            self.db.execute("UPDATE playlists SET name=?, updated=? WHERE id=?", (name, now(), playlist_id))
+        return name
+
+    def delete_playlist(self, playlist_id):
+        with self.db:
+            self.db.execute("DELETE FROM playlist_items WHERE playlist_id=?", (playlist_id,))
+            self.db.execute("DELETE FROM playlists WHERE id=?", (playlist_id,))
+
+    def playlist_paths(self, playlist_id):
+        return [row[0] for row in self.db.execute(
+            "SELECT path FROM playlist_items WHERE playlist_id=? ORDER BY position", (playlist_id,))]
+
+    def _write_items(self, playlist_id, paths):
+        self.db.execute("DELETE FROM playlist_items WHERE playlist_id=?", (playlist_id,))
+        self.db.executemany("INSERT INTO playlist_items(playlist_id, position, path) VALUES(?,?,?)",
+                            [(playlist_id, position, str(path)) for position, path in enumerate(paths)])
+
+    def set_playlist_paths(self, playlist_id, paths):
+        self.playlist(playlist_id)
+        with self.db:
+            self._write_items(playlist_id, list(paths))
+            self.db.execute("UPDATE playlists SET updated=? WHERE id=?", (now(), playlist_id))
+
+    def add_to_playlist(self, playlist_id, paths, at=None, allow_duplicates=False):
+        """Append (or insert at `at`); returns how many were added. Duplicates are skipped by default."""
+        current = self.playlist_paths(playlist_id)
+        present = set(current)
+        new = [str(p) for p in dict.fromkeys(paths) if allow_duplicates or str(p) not in present]
+        at = len(current) if at is None else max(0, min(at, len(current)))
+        self.set_playlist_paths(playlist_id, current[:at] + new + current[at:])
+        return len(new)
+
+    def remove_from_playlist(self, playlist_id, positions):
+        drop = set(positions)
+        current = self.playlist_paths(playlist_id)
+        self.set_playlist_paths(playlist_id, [p for n, p in enumerate(current) if n not in drop])
+
+    def move_in_playlist(self, playlist_id, positions, target):
+        """Move the rows at `positions` (kept in order) so the first lands at `target`."""
+        current = self.playlist_paths(playlist_id)
+        moving = [current[n] for n in sorted(set(positions)) if 0 <= n < len(current)]
+        rest = [p for n, p in enumerate(current) if n not in set(positions)]
+        target -= sum(1 for n in positions if n < target)
+        target = max(0, min(target, len(rest)))
+        self.set_playlist_paths(playlist_id, rest[:target] + moving + rest[target:])
+
+    def forget_in_playlists(self, path):
+        """A file left the library for good: take it out of every playlist."""
+        for (playlist_id,) in self.db.execute("SELECT DISTINCT playlist_id FROM playlist_items WHERE path=?",
+                                              (path,)).fetchall():
+            self.set_playlist_paths(playlist_id, [p for p in self.playlist_paths(playlist_id) if p != path])
+

@@ -198,6 +198,22 @@ def inspect():
             page.set_rate(1.25)
             assert page.player.rate == 1.25 and window.store.setting("music.rate") == 1.25
             page.set_rate(1.0)
+            playlist = page.music.create_playlist("Teste", [str(second)])
+            page.refresh_playlists()
+            page.show_playlist(playlist)
+            assert page.stack.get_visible_child_name() == "playlist"
+            assert page.playlist_view.table.count() == 1
+            page.add_to_playlist(playlist, [str(first)])
+            page.add_to_playlist(playlist, [str(first)])  # duplicates are skipped
+            assert page.music.playlist_paths(playlist) == [str(second), str(first)]
+            page.playlist_view.reorder([1], 0)
+            assert page.music.playlist_paths(playlist) == [str(first), str(second)]
+            assert page.playlist_view.table.count() == 2
+            assert page.rows[f"playlist:{playlist}"].label.get_text() == "Teste"
+            page.playlist_view.table.play_from(1)
+            assert page.current_path == str(second)
+            page.remove_from_playlist(playlist, [0])
+            assert page.music.playlist_paths(playlist) == [str(second)]
             assert page.keep_running(), "Fechar a janela tocando deve manter a música"
             window.close()
             assert not window.get_visible() and not window.closed

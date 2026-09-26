@@ -27,6 +27,11 @@ class QueueView(Gtk.Box):
         self.order.set_tooltip_text("Ordem de reprodução")
         self.order.connect("notify::selected", self._order_changed)
         top.append(self.order)
+        save = Gtk.Button(icon_name="document-save-symbolic", tooltip_text="Salvar a fila como playlist",
+                          valign=Gtk.Align.CENTER)
+        save.connect("clicked", lambda _b: controller.new_playlist(controller.queue.items()))
+        top.append(save)
+        self.save = save
         self.clear = Gtk.Button(icon_name="edit-clear-all-symbolic", tooltip_text="Limpar as próximas músicas",
                                 valign=Gtk.Align.CENTER)
         self.clear.connect("clicked", lambda _b: controller.clear_upcoming())
@@ -79,6 +84,7 @@ class QueueView(Gtk.Box):
         self.summary.set_text(f"{max(0, upcoming)} música" + ("s" if upcoming != 1 else "") + " a seguir"
                               if items else "")
         self.clear.set_sensitive(upcoming > 0)
+        self.save.set_sensitive(bool(items))
         # Show a window around the current track: recent history and what is next.
         start = max(0, queue.index - 20)
         for position in range(start, min(len(items), start + 500)):
