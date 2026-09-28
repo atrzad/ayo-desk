@@ -132,8 +132,82 @@ def show_preferences(parent, controller):
     library.add(watch)
     page.add(library)
     dialog.add(page)
+    dialog.add(sound_page(controller))
     dialog.present(parent)
     return dialog
+
+
+def _switch(store, key, default, title, subtitle, changed):
+    row = Adw.SwitchRow(title=title, subtitle=subtitle)
+    row.set_active(store.setting(key, default))
+
+    def toggled(widget, _pspec):
+        store.set_setting(key, widget.get_active())
+        changed()
+    row.connect("notify::active", toggled)
+    return row
+
+
+def sound_page(controller):
+    from .sound import LEVELING_MODES
+    store = controller.store
+    changed = controller.apply_sound_settings
+    page = Adw.PreferencesPage(title="Som", icon_name="audio-speakers-symbolic")
+
+    leveling = Adw.PreferencesGroup(title="Nivelamento de volume",
+                                    description="Deixa as músicas no mesmo volume, como o ReplayGain. Usa as tags "
+                                                "do arquivo quando existem e mede o resto em segundo plano.")
+    mode = Adw.ComboRow(title="Modo", model=Gtk.StringList.new([name for _key, name in LEVELING_MODES]))
+    mode.set_subtitle("Automático usa o volume do álbum quando ele toca em ordem.")
+    keys = [key for key, _name in LEVELING_MODES]
+    current = store.setting("music.leveling", "auto")
+    mode.set_selected(keys.index(current) if current in keys else 0)
+
+    def mode_changed(row, _pspec):
+        store.set_setting("music.leveling", keys[row.get_selected()])
+        changed()
+    mode.connect("notify::selected", mode_changed)
+    leveling.add(mode)
+    preamp = Adw.SpinRow.new_with_range(-6, 12, 1)
+    preamp.set_title("Pré-amplificação (dB)")
+    preamp.set_subtitle("Aumente se tudo ficar baixo demais; os picos são protegidos contra distorção.")
+    preamp.set_value(store.setting("music.preamp", 0.0))
+
+    def preamp_changed(row, _pspec):
+        store.set_setting("music.preamp", row.get_value())
+        changed()
+    preamp.connect("notify::value", preamp_changed)
+    leveling.add(preamp)
+    measured, total = controller.sound.progress()
+    leveling.add(_switch(store, "music.analyze_library", True, "Medir a biblioteca em segundo plano",
+                         f"{measured} de {total} músicas medidas.", changed))
+    page.add(leveling)
+
+    transitions = Adw.PreferencesGroup(title="Transições")
+    crossfade = Adw.SpinRow.new_with_range(0, 12, 1)
+    crossfade.set_title("Crossfade (segundos)")
+    crossfade.set_subtitle("0 desliga: as músicas emendam sem intervalo (gapless).")
+    crossfade.set_value(store.setting("music.crossfade", 0))
+
+    def crossfade_changed(row, _pspec):
+        store.set_setting("music.crossfade", int(row.get_value()))
+        changed()
+    crossfade.connect("notify::value", crossfade_changed)
+    transitions.add(crossfade)
+    transitions.add(_switch(store, "music.crossfade_skip_albums", True, "Não misturar faixas do mesmo álbum",
+                            "Álbuns tocados em ordem mantêm as transições originais.", changed))
+    transitions.add(_switch(store, "music.smooth_pause", True, "Pausar suavemente",
+                            "O som diminui aos poucos ao pausar e volta aos poucos ao tocar.", changed))
+    page.add(transitions)
+
+    display = Adw.PreferencesGroup(title="Exibição")
+    display.add(_switch(store, "music.waveform", True, "Barra de progresso em forma de onda",
+                        "Mostra o desenho da música na barra do player.", changed))
+    equalizer = Adw.ButtonRow(title="Abrir o equalizador")
+    equalizer.connect("activated", lambda _r: controller.show_equalizer())
+    display.add(equalizer)
+    page.add(display)
+    return page
 
 
 def show_about(parent, version):

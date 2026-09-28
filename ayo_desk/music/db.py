@@ -188,3 +188,35 @@ class MusicDB:
                                               (path,)).fetchall():
             self.set_playlist_paths(playlist_id, [p for p in self.playlist_paths(playlist_id) if p != path])
 
+    # ── loudness and waveform analysis ─────────────────────────────────────
+    def analysis(self, path):
+        row = self.db.execute("SELECT a.gain, a.peak, a.waveform, a.mtime_ns = m.mtime_ns AS fresh "
+                              "FROM music_analysis a LEFT JOIN music_meta m USING(path) WHERE a.path=?",
+                              (path,)).fetchone()
+        return dict(row) if row else None
+
+    def save_analysis(self, path, mtime_ns, gain, peak, waveform):
+        with self.db:
+            self.db.execute("INSERT INTO music_analysis(path, mtime_ns, gain, peak, waveform) VALUES(?,?,?,?,?) "
+                            "ON CONFLICT(path) DO UPDATE SET mtime_ns=excluded.mtime_ns, gain=excluded.gain, "
+                            "peak=excluded.peak, waveform=excluded.waveform",
+                            (path, mtime_ns, gain, peak, waveform))
+
+    def pending_analysis(self):
+        """Library files never measured, or changed since they were."""
+        return [row[0] for row in self.db.execute(
+            "SELECT m.path FROM music_meta m LEFT JOIN music_analysis a USING(path) "
+            "WHERE a.path IS NULL OR a.mtime_ns != m.mtime_ns ORDER BY m.path")]
+
+    def gains(self):
+        """{path: (gain, peak)} from tags when present, otherwise from our own measurement."""
+        result = {}
+        for path, tag_gain, tag_peak, gain, peak in self.db.execute(
+                "SELECT m.path, m.rg_track_gain, m.rg_track_peak, a.gain, a.peak FROM music_meta m "
+                "LEFT JOIN music_analysis a USING(path)"):
+            if tag_gain is not None:
+                result[path] = (tag_gain, tag_peak)
+            elif gain is not None:
+                result[path] = (gain, peak)
+        return result
+

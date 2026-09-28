@@ -70,6 +70,11 @@ class PlaybackMenu(Gtk.MenuButton):
         box.append(self.sleep_status)
 
         box.append(Gtk.Separator(margin_top=4, margin_bottom=4))
+        equalizer = Gtk.Button(label="Equalizador…")
+        equalizer.connect("clicked", lambda _b: (self.get_popover().popdown(), controller.show_equalizer()))
+        box.append(equalizer)
+
+        box.append(Gtk.Separator(margin_top=4, margin_bottom=4))
         box.append(section("Saída de áudio"))
         self.output = Gtk.DropDown.new_from_strings(["Padrão do sistema"])
         self.output.connect("notify::selected", self._output_changed)

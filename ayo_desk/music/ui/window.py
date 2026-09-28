@@ -19,6 +19,7 @@ from ..library import AUDIO_EXTENSIONS, read_changes, scan_music_folder
 from ..queue import REPEAT_CYCLE, REPEAT_OFF, SHUFFLE_OFF, SHUFFLE_TRACKS, PlayQueue
 from ...widgets import confirm
 from .dialogs import open_containing_folder, show_about, show_preferences, show_properties
+from .equalizer import EqualizerDialog
 from .integration import Integration
 from .model import Library, artist_names
 from .now_playing import NowPlaying
@@ -26,6 +27,7 @@ from .playback_menu import PlaybackMenu
 from .playlists import PlaylistView, ask_name
 from .player_bar import PlayerBar
 from .queue_view import QueueView
+from .sound import Sound
 from .tracks import parse_payload
 from .views import AlbumsView, SongsView, album_page, artist_page, artists_view, folders_view, genres_view
 
@@ -71,7 +73,8 @@ class MusicPage(Gtk.Box):
         self.muted = False
         self.sleep_mode = None      # None, minutes (int), "track" or "queue"
         self.sleep_deadline = None
-        self.player = Player(self.on_state, self.on_error, self.on_queue_end, started=self.on_gapless)
+        self.player = Player(self.on_state, self.on_error, self.on_queue_end, started=self.on_gapless,
+                             spectrum=self.on_spectrum)
         self.player.rate = float(self.store.setting("music.rate", 1.0))
         output = self.store.setting("music.output")
         if output:
@@ -120,6 +123,8 @@ class MusicPage(Gtk.Box):
         self.add_controller(drop)
 
         self.system = Integration(self)
+        self.sound = Sound(self)
+        self.sound.apply_equalizer()
         self.set_grayscale(self.store.setting("music.grayscale_covers", False), save=False)
         self.player.volume(self.volume_value)
         self.bar.show_volume(self.volume_value, False)
@@ -359,6 +364,7 @@ class MusicPage(Gtk.Box):
             self.navigation.unselect_all()
         if name == "queue":
             self.queue_view.render(self.queue, self.library)
+        self._update_spectrum()
         if self.split.get_collapsed():
             self.split.set_show_sidebar(False)
 
@@ -486,7 +492,7 @@ class MusicPage(Gtk.Box):
             if 30 < saved < track.duration - 30:
                 position = saved
         try:
-            self.player.load(path, play=play, start=position)
+            self.player.load(path, play=play, start=position, gain=self.sound.gain_for(path))
         except ValueError as exc:
             self.notify(str(exc))
             self.stop_playback()
@@ -497,7 +503,10 @@ class MusicPage(Gtk.Box):
         previous, self.current_path = self.current_path, path
         self.listened, self.last_tick = 0.0, time.monotonic()
         self.refresh_tables(previous, path)
-        self.player.set_next(self.upcoming())
+        upcoming = self.upcoming()
+        self.player.set_next(upcoming, self.sound.gain_for(upcoming))
+        self.bar.seekbar.set_levels(self.sound.waveform(path))
+        self.sound.request(path, self.next_candidate())
         track = self.library.get(path)
         self.bar.show_track(track, self.player)
         self.bar.show_modes(self.queue.shuffle, self.queue.repeat)
@@ -509,13 +518,35 @@ class MusicPage(Gtk.Box):
         if announce:
             self.system.notify_track(track)
 
-    def upcoming(self):
-        """What plays next without a gap, honouring the sleep timer."""
+    def next_candidate(self):
+        """What plays next on its own, honouring the sleep timer."""
         if self.sleep_mode == "track":
             return None
         if self.sleep_mode == "queue" and self.queue.index + 1 >= len(self.queue):
             return None
         return self.queue.peek()
+
+    def upcoming(self):
+        """What follows without a gap; None when it will crossfade instead (see tick)."""
+        candidate = self.next_candidate()
+        track = self.library.get(self.current_path) if self.current_path else None
+        if candidate and self.sound.crossfade_for(self.current_path, candidate, track.duration if track else 0):
+            return None
+        return candidate
+
+    def begin_crossfade(self, path, seconds):
+        self.finish_listen(automatic=True)
+        if self.current_path:
+            self.music.set_resume_position(self.current_path, 0)
+        if self.queue.advance(automatic=True) != path:
+            return
+        try:
+            self.player.crossfade_to(path, seconds, gain=self.sound.gain_for(path))
+        except ValueError as exc:
+            self.notify(str(exc))
+            self.start(self.queue.advance(automatic=True), automatic=True)
+            return
+        self.track_started(path)
 
     def stop_playback(self):
         previous = self.current_path
@@ -567,7 +598,7 @@ class MusicPage(Gtk.Box):
 
     def toggle(self):
         if self.player.path:
-            self.player.toggle()
+            self.player.toggle(fade=0.18 if self.store.setting("music.smooth_pause", True) else 0.0)
         elif self.queue.current:
             self.start(self.queue.current)
         elif self.library.tracks.get_n_items():
@@ -737,6 +768,12 @@ class MusicPage(Gtk.Box):
         self.last_tick = now
         position, duration = self.player.position()
         self.bar.show_position(position, duration)
+        if self.player.playing and not self.player.crossfading and duration > 0:
+            candidate = self.next_candidate()
+            seconds = self.sound.crossfade_for(self.current_path, candidate, duration)
+            remaining = (duration - position) / max(0.5, self.player.rate)
+            if seconds and 0 < remaining <= seconds + 0.5:
+                self.begin_crossfade(candidate, max(0.5, remaining - 0.1))
         if self.since_save >= SAVE_EVERY:
             self.since_save = 0.0
             self.save_position(position)
@@ -781,7 +818,7 @@ class MusicPage(Gtk.Box):
         position = self.store.setting("music.position", {}) or {}
         seconds = position.get("seconds", 0) if position.get("path") == current else 0
         try:
-            self.player.load(current, play=False, start=seconds)
+            self.player.load(current, play=False, start=seconds, gain=self.sound.gain_for(current))
         except ValueError:
             return
         self.track_started(current, announce=False)
@@ -926,6 +963,7 @@ class MusicPage(Gtk.Box):
     # ── library ─────────────────────────────────────────────────────────────────
     def reload_library(self):
         self.library.load(self.music.library(), root=self.store.music_folder())
+        self.sound.reload_gains()
         self.update_status()
         if self.playlist_view.playlist_id is not None:
             self.playlist_view.reload()
@@ -988,6 +1026,7 @@ class MusicPage(Gtk.Box):
                 background(lambda: cover_cache.prune(keep), lambda *_: None)
                 self.reload_library()
                 self.watch_folder()
+                self.sound.start_library()
                 if self.library.tracks.get_n_items() and self.stack.get_visible_child_name() == "welcome":
                     self.show_view("albums")
         self.update_status()
@@ -1128,6 +1167,50 @@ class MusicPage(Gtk.Box):
         if save:
             self.store.set_setting("music.grayscale_covers", bool(active))
 
+    # ── sound ───────────────────────────────────────────────────────────────────
+    def on_analysis(self, path):
+        """A track was measured: show its waveform and, if it just started, level it now."""
+        if path == self.current_path:
+            self.bar.seekbar.set_levels(self.sound.waveform(path))
+            if self.player.position()[0] < 10:
+                self.player.set_gain(self.sound.gain_for(path))
+        if path == self.next_candidate():
+            upcoming = self.upcoming()
+            self.player.set_next(upcoming, self.sound.gain_for(upcoming))
+
+    def on_spectrum(self, levels, endtime):
+        self.now_view.visualizer.push(levels, endtime)
+
+    def set_visualizer(self, active):
+        self.store.set_setting("music.visualizer", bool(active))
+        self._update_spectrum()
+
+    def _update_spectrum(self):
+        active = self.store.setting("music.visualizer", False)
+        self.now_view.visualizer_revealer.set_reveal_child(active)
+        showing = active and self.stack.get_visible_child_name() == "now"
+        self.player.set_spectrum(showing)
+        if not showing:
+            self.now_view.visualizer.clear()
+
+    def show_equalizer(self):
+        EqualizerDialog(self).present(self.window)
+
+    def equalizer_settings(self):
+        return self.sound.equalizer_settings()
+
+    def set_equalizer(self, enabled, bands, preset):
+        self.sound.set_equalizer(enabled, bands, preset)
+
+    def apply_sound_settings(self):
+        """Preferences changed: re-level the current and next track and re-plan the transition."""
+        if self.current_path:
+            self.player.set_gain(self.sound.gain_for(self.current_path))
+            self.bar.seekbar.set_levels(self.sound.waveform(self.current_path))
+        upcoming = self.upcoming()
+        self.player.set_next(upcoming, self.sound.gain_for(upcoming))
+        self.sound.start_library()
+
     # ── window, files and preferences ──────────────────────────────────────────
     def present(self):
         self.window.present()
@@ -1183,6 +1266,7 @@ class MusicPage(Gtk.Box):
         self.save_resume()
         self.save_session()
         self.system.close()
+        self.sound.close()
         if self.volume_timer:
             self._save_volume()
         self.closed = True

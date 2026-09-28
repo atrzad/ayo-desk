@@ -4,6 +4,7 @@ from gi.repository import Gtk, Pango
 from ..queue import REPEAT_ALL, REPEAT_OFF, REPEAT_ONE, SHUFFLE_OFF
 from .covers import Cover
 from .model import duration_text
+from .waveform import Waveform
 
 REPEAT_LOOK = {REPEAT_OFF: ("media-playlist-repeat-symbolic", "Repetir: desligado"),
                REPEAT_ALL: ("media-playlist-repeat-symbolic", "Repetir: todas"),
@@ -77,10 +78,8 @@ class PlayerBar(Gtk.Box):
         for widget in (self.elapsed, self.remaining):
             widget.add_css_class("numeric")
             widget.add_css_class("caption")
-        self.seekbar = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 1, 1)
-        self.seekbar.set_hexpand(True)
-        self.seekbar.set_draw_value(False)
-        self.seekbar.connect("change-value", self._seek)
+        self.seekbar = Waveform()
+        self.seekbar.connect("seek", lambda _w, seconds: controller.seek(seconds))
         seek_row.append(self.elapsed)
         seek_row.append(self.seekbar)
         seek_row.append(self.remaining)
@@ -99,11 +98,6 @@ class PlayerBar(Gtk.Box):
         self.volume.connect("value-changed", lambda scale: controller.set_volume(scale.get_value()))
         side.append(self.volume)
         layout.set_end_widget(side)
-
-    def _seek(self, _scale, _scroll, value):
-        if not self.syncing:
-            self.controller.seek(value)
-        return False
 
     def _favorite_toggled(self, button):
         button.set_icon_name("starred-symbolic" if button.get_active() else "non-starred-symbolic")
@@ -161,9 +155,7 @@ class PlayerBar(Gtk.Box):
 
     def show_position(self, position, duration):
         self.syncing = True
-        self.seekbar.set_range(0, max(1, duration))
-        self.seekbar.set_value(position)
-        self.seekbar.set_sensitive(duration > 0)
+        self.seekbar.set_position(position, duration)
         self.syncing = False
         self.elapsed.set_text(duration_text(position))
         self.remaining.set_text(duration_text(duration))

@@ -14,6 +14,9 @@
 - Abrir arquivos pelo gerenciador de arquivos ou pela linha de comando.
 - Playlists locais: criar, renomear, excluir, adicionar pelo menu ou arrastando, reordenar, salvar a fila,
   importar M3U/M3U8/PLS e exportar M3U8.
+- Som: nivelamento de volume (tags ReplayGain ou medição própria em segundo plano, modos faixa/álbum/automático),
+  equalizador de 10 bandas com presets, crossfade que respeita álbuns em ordem, pausa suave,
+  barra de progresso em forma de onda e visualizador de espectro.
 
 ## 0.1.2
 

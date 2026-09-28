@@ -105,6 +105,23 @@ class PlayerTests(unittest.TestCase):
         finally:
             player.close()
 
+    def test_speed_change_near_a_gapless_switch_never_hangs(self):
+        # Regression: seeking to apply the rate while playbin switched tracks deadlocked the app.
+        first = make_audio(Path(self.temp.name) / "curta.wav", seconds=0.3)
+        second = make_audio(Path(self.temp.name) / "seguinte.wav", seconds=0.3)
+        for delay in (0.0, 0.05, 0.15, 0.25):
+            player = self.player()
+            try:
+                player.load(first)
+                player.set_next(second)
+                pump(lambda: False, delay)
+                player.set_rate(1.25)
+                self.assertTrue(pump(lambda: self.ended or self.started, 3))
+            finally:
+                player.close()
+                self.ended.clear()
+                self.started.clear()
+
     def test_fade_out_then_pause(self):
         track = make_audio(Path(self.temp.name) / "fade.wav", seconds=3)
         player = self.player()
@@ -115,6 +132,46 @@ class PlayerTests(unittest.TestCase):
             self.assertTrue(pump(lambda: player._fade == 1.0 and not player._fade_source, 2))
             _ok, state, _pending = player.playbin.get_state(Gst.SECOND)
             self.assertEqual(state, Gst.State.PAUSED)
+        finally:
+            player.close()
+
+    def test_crossfade_switches_decks_without_eos(self):
+        first = make_audio(Path(self.temp.name) / "a.wav", seconds=3)
+        second = make_audio(Path(self.temp.name) / "b.wav", seconds=3)
+        player = self.player()
+        try:
+            player.load(first)
+            self.assertTrue(pump(lambda: player.position()[0] > 0.2))
+            old = player.deck
+            player.crossfade_to(second, 0.4, gain=0.5)
+            self.assertTrue(player.crossfading)
+            self.assertEqual(player.path, str(second))
+            self.assertIsNot(player.deck, old)
+            self.assertAlmostEqual(player.deck.gain.get_property("volume"), 0.5)
+            self.assertTrue(pump(lambda: not player.crossfading, 3))
+            _ok, state, _p = old.playbin.get_state(Gst.SECOND)
+            self.assertEqual(state, Gst.State.NULL, "O deck antigo para depois do crossfade")
+            self.assertEqual(player.deck.level, 1.0)
+            self.assertTrue(player.position()[0] > 0.2)
+            self.assertFalse(self.ended or self.errors)
+        finally:
+            player.close()
+
+    def test_equalizer_gain_and_spectrum(self):
+        track = make_audio(Path(self.temp.name) / "tom.wav", seconds=2)
+        frames = []
+        player = Player(lambda: None, self.errors.append, lambda: self.ended.append(True), sink=silent_sink(),
+                        spectrum=lambda levels, end: frames.append((levels, end)))
+        try:
+            player.set_equalizer([6, 3, 0, 0, 0, 0, 0, 0, -3, 40])
+            self.assertEqual(player.deck.eq.get_property("band0"), 6)
+            self.assertEqual(player.decks[1].eq.get_property("band9"), 12, "Limite de +12 dB")
+            player.load(track, gain=2.0)
+            self.assertAlmostEqual(player.deck.gain.get_property("volume"), 2.0)
+            player.set_spectrum(True)
+            self.assertTrue(pump(lambda: len(frames) >= 3, 3))
+            self.assertEqual(len(frames[0][0]), 48)
+            player.set_spectrum(False)
         finally:
             player.close()
 

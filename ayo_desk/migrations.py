@@ -79,6 +79,15 @@ MIGRATIONS = (
         PRIMARY KEY (playlist_id, position));
     CREATE INDEX playlist_items_path ON playlist_items(path);
     """,
+    # 4 — measured loudness and waveform per file (re-measured when the file changes).
+    """
+    CREATE TABLE music_analysis (
+        path TEXT PRIMARY KEY,
+        mtime_ns INTEGER NOT NULL,
+        gain REAL,
+        peak REAL,
+        waveform BLOB NOT NULL DEFAULT x'');
+    """,
 )
 
 

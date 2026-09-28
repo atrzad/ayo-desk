@@ -3,6 +3,7 @@ from gi.repository import Adw, Gtk, Pango
 
 from .covers import Cover
 from .model import UNKNOWN_ALBUM, UNKNOWN_ARTIST
+from .visualizer import Visualizer
 
 
 def link(callback):
@@ -54,6 +55,22 @@ class NowPlaying(Gtk.Stack):
         self.note.add_css_class("dim-label")
         self.note.add_css_class("caption")
         box.append(self.note)
+        self.visualizer = Visualizer(controller.player.running_time)
+        self.visualizer.set_margin_top(8)
+        self.visualizer_revealer = Gtk.Revealer(child=self.visualizer,
+                                                transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+        box.append(self.visualizer_revealer)
+        tools = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER, margin_top=6)
+        self.visualizer_button = Gtk.ToggleButton(label="Visualizador", tooltip_text="Mostrar o espectro do som")
+        self.visualizer_button.add_css_class("pill")
+        self.visualizer_button.set_active(controller.store.setting("music.visualizer", False))
+        self.visualizer_button.connect("toggled", lambda b: controller.set_visualizer(b.get_active()))
+        equalizer = Gtk.Button(label="Equalizador", tooltip_text="Ajustar graves, médios e agudos")
+        equalizer.add_css_class("pill")
+        equalizer.connect("clicked", lambda _b: controller.show_equalizer())
+        tools.append(self.visualizer_button)
+        tools.append(equalizer)
+        box.append(tools)
         scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         scroll.set_child(box)
         self.add_named(scroll, "track")
