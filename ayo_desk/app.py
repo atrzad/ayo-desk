@@ -128,6 +128,8 @@ class Window(Adw.ApplicationWindow):
             return False
         if not self.force_quit and any(getattr(page, "keep_running", lambda: False)() for page in self.pages.values()):
             self.set_visible(False)  # e.g. music keeps playing; launching the app again shows the window
+            for page in self.pages.values():
+                getattr(page, "on_hidden", lambda: None)()
             return True
         self.closed = True
         for page in self.pages.values():

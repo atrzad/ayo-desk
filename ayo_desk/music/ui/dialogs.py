@@ -203,6 +203,38 @@ def sound_page(controller):
     display = Adw.PreferencesGroup(title="Exibição")
     display.add(_switch(store, "music.waveform", True, "Barra de progresso em forma de onda",
                         "Mostra o desenho da música na barra do player.", changed))
+    from .visualizer import STYLES
+    from .. import cava as cava_module
+    visual = Adw.PreferencesGroup(title="Visualizador")
+    sources = [("cava", "CAVA (todo o som do sistema)"), ("internal", "Interno (só o Ayo Música)")]
+    source = Adw.ComboRow(title="Fonte", model=Gtk.StringList.new([n for _k, n in sources]))
+    source.set_subtitle("O CAVA precisa estar instalado." if not cava_module.available() else
+                        "O CAVA mostra qualquer áudio tocando no computador.")
+    source.set_selected(0 if store.setting("music.visualizer_source", "cava") == "cava" else 1)
+    source.set_sensitive(cava_module.available())
+    style = Adw.ComboRow(title="Estilo", model=Gtk.StringList.new([n for _k, n in STYLES]))
+    keys = [k for k, _n in STYLES]
+    style.set_selected(keys.index(store.setting("music.visualizer_style", "bars")))
+    bars = Adw.SpinRow.new_with_range(16, 128, 8)
+    bars.set_title("Número de barras (CAVA)")
+    bars.set_value(store.setting("music.visualizer_bars", 48))
+
+    def refresh(restart=False):
+        if restart:
+            controller.cava.stop()
+        controller._update_spectrum()
+    source.connect("notify::selected", lambda r, _p: (store.set_setting("music.visualizer_source",
+                                                                       sources[r.get_selected()][0]), refresh(True)))
+    style.connect("notify::selected", lambda r, _p: (store.set_setting("music.visualizer_style",
+                                                                      keys[r.get_selected()]), refresh()))
+    bars.connect("notify::value", lambda r, _p: (store.set_setting("music.visualizer_bars", int(r.get_value())),
+                                                 refresh(True)))
+    for row in (source, style, bars):
+        visual.add(row)
+    visual.add(_switch(store, "music.visualizer", False, "Mostrar em Tocando agora", "", refresh))
+    visual.add(_switch(store, "music.visualizer_strip", False, "Faixa acima da barra do player",
+                       "Uma linha fina de barras sempre visível.", refresh))
+    page.add(visual)
     equalizer = Adw.ButtonRow(title="Abrir o equalizador")
     equalizer.connect("activated", lambda _r: controller.show_equalizer())
     display.add(equalizer)

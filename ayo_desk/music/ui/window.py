@@ -28,6 +28,8 @@ from .playlists import PlaylistView, ask_name
 from .player_bar import PlayerBar
 from .queue_view import QueueView
 from .sound import Sound
+from .visualizer import Visualizer
+from .. import cava
 from .tracks import parse_payload
 from .views import AlbumsView, SongsView, album_page, artist_page, artists_view, folders_view, genres_view
 
@@ -99,6 +101,12 @@ class MusicPage(Gtk.Box):
         content.append(self.stack)
         self.split.set_content(content)
         self.append(self.split)
+        self.strip = Visualizer(lambda: self.player.running_time(), height=(26, 30))
+        self.strip.set_margin_start(12)
+        self.strip.set_margin_end(12)
+        self.strip_revealer = Gtk.Revealer(child=self.strip, transition_type=Gtk.RevealerTransitionType.SLIDE_UP)
+        self.append(self.strip_revealer)
+        self.cava = cava.Cava(self._cava_frame)
         self.bar = PlayerBar(self)
         self.playback_menu = PlaybackMenu(self)
         self.bar.side.prepend(self.playback_menu)
@@ -964,12 +972,30 @@ class MusicPage(Gtk.Box):
     def reload_library(self):
         self.library.load(self.music.library(), root=self.store.music_folder())
         self.sound.reload_gains()
+        GLib.timeout_add_seconds(2, self.check_fonts)
         self.update_status()
         if self.playlist_view.playlist_id is not None:
             self.playlist_view.reload()
         if self.current_path:
             self.bar.show_track(self.library.get(self.current_path), self.player)
             self.now_view.show_track(self.library.get(self.current_path), self.player)
+
+    def check_fonts(self):
+        """Once: if some titles can't be drawn (e.g. no CJK font), say which package to install."""
+        from .. import fonts
+        texts = {t for n in range(self.library.tracks.get_n_items())
+                 for t in (self.library.tracks.get_item(n).title, self.library.tracks.get_item(n).display_artist,
+                           self.library.tracks.get_item(n).display_album)}
+        missing = fonts.missing_packages(texts, self)
+        seen = set(self.store.setting("music.font_hints", []))
+        new = sorted(set(missing) - seen)
+        if new:
+            self.store.set_setting("music.font_hints", sorted(seen | set(new)))
+            example = missing[new[0]]
+            toast = Adw.Toast(title=f"Faltam fontes para títulos como “{example[:30]}”. "
+                                    f"Instale: sudo pacman -S {' '.join(new)}", timeout=12)
+            self.window.overlay.add_toast(toast)
+        return GLib.SOURCE_REMOVE
 
     def update_status(self, detail=None):
         folder = self.store.music_folder()
@@ -1180,18 +1206,40 @@ class MusicPage(Gtk.Box):
 
     def on_spectrum(self, levels, endtime):
         self.now_view.visualizer.push(levels, endtime)
+        self.strip.push(levels, endtime)
+
+    def _cava_frame(self, levels):
+        self.now_view.visualizer.set_levels(levels)
+        self.strip.set_levels(levels)
+
+    def visualizer_source(self):
+        wanted = self.store.setting("music.visualizer_source", "cava")
+        return "cava" if wanted == "cava" and cava.available() else "internal"
 
     def set_visualizer(self, active):
         self.store.set_setting("music.visualizer", bool(active))
         self._update_spectrum()
 
     def _update_spectrum(self):
+        """Run the analyser only while something shows it (and only while the window is visible)."""
         active = self.store.setting("music.visualizer", False)
+        strip = self.store.setting("music.visualizer_strip", False)
+        style = self.store.setting("music.visualizer_style", "bars")
+        for widget in (self.now_view.visualizer, self.strip):
+            widget.set_style(style)
         self.now_view.visualizer_revealer.set_reveal_child(active)
-        showing = active and self.stack.get_visible_child_name() == "now"
-        self.player.set_spectrum(showing)
+        self.strip_revealer.set_reveal_child(strip)
+        showing = ((active and self.stack.get_visible_child_name() == "now") or strip) \
+            and self.window.get_visible() and not self.closed
+        use_cava = showing and self.visualizer_source() == "cava"
+        self.player.set_spectrum(showing and not use_cava)
+        if use_cava and not self.cava.running:
+            self.cava.start(bars=self.store.setting("music.visualizer_bars", 48))
+        elif not use_cava and self.cava.running:
+            self.cava.stop()
         if not showing:
             self.now_view.visualizer.clear()
+            self.strip.clear()
 
     def show_equalizer(self):
         EqualizerDialog(self).present(self.window)
@@ -1257,7 +1305,10 @@ class MusicPage(Gtk.Box):
         self.window.notify(text)
 
     def on_show(self):
-        pass
+        self._update_spectrum()
+
+    def on_hidden(self):
+        self._update_spectrum()
 
     def close(self):
         if self.closed:
@@ -1267,6 +1318,7 @@ class MusicPage(Gtk.Box):
         self.save_session()
         self.system.close()
         self.sound.close()
+        self.cava.stop()
         if self.volume_timer:
             self._save_volume()
         self.closed = True

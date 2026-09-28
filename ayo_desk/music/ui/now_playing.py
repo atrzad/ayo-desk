@@ -65,6 +65,7 @@ class NowPlaying(Gtk.Stack):
         self.visualizer_button.add_css_class("pill")
         self.visualizer_button.set_active(controller.store.setting("music.visualizer", False))
         self.visualizer_button.connect("toggled", lambda b: controller.set_visualizer(b.get_active()))
+        self.visualizer.set_size_request(-1, 110)
         equalizer = Gtk.Button(label="Equalizador", tooltip_text="Ajustar graves, médios e agudos")
         equalizer.add_css_class("pill")
         equalizer.connect("clicked", lambda _b: controller.show_equalizer())

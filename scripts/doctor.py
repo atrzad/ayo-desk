@@ -42,6 +42,14 @@ def main():
         ["gst-inspect-1.0", "--exists", name], check=False).returncode != 0]
     print(f"{'OK' if not missing else 'AVISO':5} {'GStreamer':18} "
           + ("efeitos de áudio disponíveis" if not missing else "faltam: " + ", ".join(missing)))
+    families = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True,
+                              check=False).stdout if shutil.which("fc-list") else ""
+    for family, package, purpose in (("Noto Sans", "noto-fonts", "textos em geral"),
+                                     ("Noto Sans CJK", "noto-fonts-cjk", "japonês, chinês e coreano"),
+                                     ("Noto Color Emoji", "noto-fonts-emoji", "emojis"),
+                                     ("Noto Sans Arabic", "noto-fonts-extra", "árabe, hebraico, tailandês...")):
+        found = family in families
+        print(f"{'OK' if found else 'AVISO':5} {package:18} fonte para {purpose}")
     for service in ("NetworkManager", "bluetooth"):
         active = service_active(service)
         print(f"{'OK' if active else 'AVISO':5} {service:18} {'ativo' if active else 'não está ativo'}")

@@ -17,6 +17,8 @@
 - Som: nivelamento de volume (tags ReplayGain ou medição própria em segundo plano, modos faixa/álbum/automático),
   equalizador de 10 bandas com presets, crossfade que respeita álbuns em ordem, pausa suave,
   barra de progresso em forma de onda e visualizador de espectro.
+- Visualizador estilo CAVA embutido (usa o `cava` instalado; barras, espelhado, onda ou pontos; faixa opcional
+  acima do player) e aviso de fontes faltando para títulos em outras línguas.
 
 ## 0.1.2
 
