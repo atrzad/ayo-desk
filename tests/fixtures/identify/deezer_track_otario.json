@@ -1,0 +1,27 @@
+{
+ "id": 2101916957,
+ "title": "Otário",
+ "title_short": "Otário",
+ "isrc": "BREOQ1700002",
+ "duration": 229,
+ "track_position": 2,
+ "disk_number": 1,
+ "release_date": "2017-10-01",
+ "contributors": [
+  {
+   "id": 8791452,
+   "name": "Seu Pereira e Coletivo 401",
+   "role": "Main"
+  }
+ ],
+ "artist": {
+  "id": 8791452,
+  "name": "Seu Pereira e Coletivo 401"
+ },
+ "album": {
+  "id": 394813617,
+  "title": "Eu Não Sou Boa Influência pra Você",
+  "cover_xl": "https://cdn-images.dzcdn.net/images/cover/389d61b6d4d782715a0a4d4d9289331c/1000x1000-000000-80-0-0.jpg",
+  "release_date": "2017-10-01"
+ }
+}

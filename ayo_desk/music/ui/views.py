@@ -227,6 +227,11 @@ def album_page(controller, group):
     def play(shuffle=False):
         controller.play_paths(group.paths(), 0, shuffle=shuffle)
     header.actions.append(play_buttons(play, lambda: play(True)))
+    identify = Gtk.Button(icon_name="edit-find-replace-symbolic", valign=Gtk.Align.CENTER,
+                          tooltip_text="Identificar álbum: completar faixas, ano e capa oficial")
+    identify.add_css_class("circular")
+    identify.connect("clicked", lambda _b: controller.organizer.identify_album(group))
+    header.actions.append(identify)
     box.append(header)
     for disc in discs:
         members = [t for t in group.tracks if (t.disc_no or 1) == disc]

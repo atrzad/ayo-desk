@@ -1,0 +1,107 @@
+{
+ "data": [
+  {
+   "id": 384157591,
+   "title": "See You Again (feat. Kali Uchis)",
+   "title_short": "See You Again (feat. Kali Uchis)",
+   "duration": 180,
+   "rank": 917473,
+   "artist": {
+    "id": 1194083,
+    "name": "Tyler, The Creator"
+   },
+   "album": {
+    "id": 44730061,
+    "title": "Flower Boy",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a7a16b8f63b1ec0e9fbd327619966737/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/a7a16b8f63b1ec0e9fbd327619966737/500x500-000000-80-0-0.jpg"
+   }
+  },
+  {
+   "id": 2815756482,
+   "title": "See You Again Tyler The Creator",
+   "title_short": "See You Again Tyler The Creator",
+   "duration": 176,
+   "rank": 18847,
+   "artist": {
+    "id": 236089191,
+    "name": "Aiden Yoo"
+   },
+   "album": {
+    "id": 591186942,
+    "title": "Stamp Fairtex",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/17e73f8cf8cd175e60c0be17f2717a50/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/17e73f8cf8cd175e60c0be17f2717a50/500x500-000000-80-0-0.jpg"
+   }
+  },
+  {
+   "id": 2789395742,
+   "title": "See You Again Tyler The Creator",
+   "title_short": "See You Again Tyler The Creator",
+   "duration": 161,
+   "rank": 18474,
+   "artist": {
+    "id": 65185792,
+    "name": "Lee Sang Gul"
+   },
+   "album": {
+    "id": 583801282,
+    "title": "Stamp Fairtex",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/9c23c3b0ddc96a9878e9d4d5a395aba0/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/9c23c3b0ddc96a9878e9d4d5a395aba0/500x500-000000-80-0-0.jpg"
+   }
+  },
+  {
+   "id": 2881900952,
+   "title": "See You Again (made popular by Tyler, The Creator ft. Kali Uchis) [karaoke version]",
+   "title_short": "See You Again (made popular by Tyler, The Creator ft. Kali Uchis) [karaoke version]",
+   "duration": 180,
+   "rank": 32494,
+   "artist": {
+    "id": 384495,
+    "name": "Party Tyme Karaoke"
+   },
+   "album": {
+    "id": 612794272,
+    "title": "Hip Hop & Rap Hits 10 (Karaoke Versions)",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8d7e377e9ea8e4fbd601c6d02e7fef30/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/8d7e377e9ea8e4fbd601c6d02e7fef30/500x500-000000-80-0-0.jpg"
+   }
+  },
+  {
+   "id": 3839698601,
+   "title": "See You Again (Feat. Kali Uchis) (By Tyler, The Creator) (Instrumental Karaoke Version)",
+   "title_short": "See You Again (Feat. Kali Uchis) (By Tyler, The Creator) (Instrumental Karaoke Version)",
+   "duration": 189,
+   "rank": 100000,
+   "artist": {
+    "id": 248387262,
+    "name": "ZZang KARAOKE"
+   },
+   "album": {
+    "id": 917566601,
+    "title": "ZZang KARAOKE 2026 POP Vol.273",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/698e9087f13627b27383f127406df97c/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/698e9087f13627b27383f127406df97c/500x500-000000-80-0-0.jpg"
+   }
+  },
+  {
+   "id": 3426418241,
+   "title": "See You Again",
+   "title_short": "See You Again",
+   "duration": 229,
+   "rank": 18637,
+   "artist": {
+    "id": 383307,
+    "name": "Twinkle Twinkle Little Rock Star"
+   },
+   "album": {
+    "id": 776748891,
+    "title": "Lullaby Versions of Tyler, The Creator",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/905444ce0f65c83e9882e67dd6086723/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/905444ce0f65c83e9882e67dd6086723/500x500-000000-80-0-0.jpg"
+   }
+  }
+ ],
+ "total": 7
+}

@@ -133,6 +133,7 @@ def show_preferences(parent, controller):
     page.add(library)
     dialog.add(page)
     dialog.add(sound_page(controller))
+    dialog.add(metadata_page(controller))
     dialog.present(parent)
     return dialog
 
@@ -249,3 +250,39 @@ def show_about(parent, version):
                             website="https://github.com/atrzad/ayo-desk")
     about.present(parent)
     return about
+
+
+def metadata_page(controller):
+    from ..identify import songrec, writer
+    store = controller.store
+    page = Adw.PreferencesPage(title="Metadados", icon_name="edit-find-replace-symbolic")
+    group = Adw.PreferencesGroup(title="Identificar músicas",
+                                 description="Completa título, artista, álbum, ano, número da faixa e a capa oficial "
+                                             "usando o Deezer, o MusicBrainz e o reconhecimento pelo som (Shazam).")
+
+    def nothing():
+        pass
+    group.add(_switch(store, "music.identify_auto", True, "Gravar sozinho quando houver certeza",
+                      "Mesmo título, artista e duração. As outras correções ficam para você revisar; "
+                      "tudo pode ser desfeito.", nothing))
+    group.add(_switch(store, "music.identify_new", True, "Identificar músicas novas automaticamente",
+                      "O que entrar na pasta de músicas é identificado sozinho.", nothing))
+    sound = _switch(store, "music.identify_songrec", True, "Reconhecer pelo som",
+                    "Usa o SongRec (cliente livre do Shazam); envia só a impressão digital do áudio."
+                    if songrec.available() else "Instale o songrec para usar: sudo pacman -S songrec", nothing)
+    sound.set_sensitive(songrec.available())
+    group.add(sound)
+    group.add(_switch(store, "music.identify_musicbrainz", True, "Usar também o MusicBrainz",
+                      "Enciclopédia aberta de música; ajuda com artistas internacionais.", nothing))
+    group.add(_switch(store, "music.identify_covers", True, "Trocar pela capa oficial",
+                      "Substitui miniaturas de vídeo e capas ausentes; a antiga fica no backup.", nothing))
+    page.add(group)
+    tools = Adw.PreferencesGroup()
+    if not writer.available():
+        tools.set_description("Para gravar nos arquivos, instale o python-mutagen: sudo pacman -S python-mutagen")
+    organize = Adw.ButtonRow(title="Abrir Organizar biblioteca")
+    organize.connect("activated", lambda _r: controller.show_view("organize"))
+    tools.add(organize)
+    page.add(tools)
+    return page
+

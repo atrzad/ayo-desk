@@ -88,6 +88,31 @@ MIGRATIONS = (
         peak REAL,
         waveform BLOB NOT NULL DEFAULT x'');
     """,
+    # 5 — song identification results and tag backups (to undo automatic corrections).
+    """
+    CREATE TABLE identify_results (
+        path TEXT PRIMARY KEY,
+        mtime_ns INTEGER,
+        status TEXT NOT NULL,
+        confidence INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL DEFAULT '',
+        changes TEXT NOT NULL DEFAULT '{}',
+        current TEXT NOT NULL DEFAULT '{}',
+        reasons TEXT NOT NULL DEFAULT '[]',
+        candidates TEXT NOT NULL DEFAULT '[]',
+        isrc TEXT NOT NULL DEFAULT '',
+        updated TEXT NOT NULL);
+    CREATE INDEX identify_status ON identify_results(status);
+    CREATE TABLE tag_backups (
+        id INTEGER PRIMARY KEY,
+        batch TEXT NOT NULL,
+        path TEXT NOT NULL,
+        created TEXT NOT NULL,
+        backup TEXT NOT NULL,
+        applied TEXT NOT NULL,
+        restored INTEGER NOT NULL DEFAULT 0);
+    CREATE INDEX tag_backups_batch ON tag_backups(batch, restored);
+    """,
 )
 
 

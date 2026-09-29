@@ -1,5 +1,6 @@
 """Music metadata, statistics and library queries on top of core.Store's connection."""
 import datetime as dt
+import json
 
 from . import tags
 
@@ -219,4 +220,77 @@ class MusicDB:
             elif gain is not None:
                 result[path] = (gain, peak)
         return result
+
+    # ── identification (5A) ────────────────────────────────────────────────
+    def save_identify(self, result):
+        with self.db:
+            self.db.execute(
+                "INSERT INTO identify_results(path, mtime_ns, status, confidence, source, changes, current, reasons, "
+                "candidates, isrc, updated) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET "
+                "mtime_ns=excluded.mtime_ns, status=excluded.status, confidence=excluded.confidence, "
+                "source=excluded.source, changes=excluded.changes, current=excluded.current, "
+                "reasons=excluded.reasons, candidates=excluded.candidates, isrc=excluded.isrc, updated=excluded.updated",
+                (result["path"], result.get("mtime_ns"), result["status"], int(result.get("confidence") or 0),
+                 result.get("source", ""), json.dumps(result.get("changes") or {}, ensure_ascii=False),
+                 json.dumps(result.get("current") or {}, ensure_ascii=False),
+                 json.dumps(result.get("reasons") or [], ensure_ascii=False),
+                 json.dumps(result.get("candidates") or [], ensure_ascii=False), result.get("isrc", ""), now()))
+
+    @staticmethod
+    def _identify_row(row):
+        data = dict(row)
+        for key in ("changes", "current", "reasons", "candidates"):
+            data[key] = json.loads(data[key] or "null") or ({} if key in ("changes", "current") else [])
+        return data
+
+    def identify_result(self, path):
+        row = self.db.execute("SELECT * FROM identify_results WHERE path=?", (path,)).fetchone()
+        return self._identify_row(row) if row else None
+
+    def identify_results(self, *statuses, limit=1000):
+        marks = ",".join("?" for _ in statuses)
+        return [self._identify_row(row) for row in self.db.execute(
+            f"SELECT * FROM identify_results WHERE status IN ({marks}) ORDER BY updated DESC, path LIMIT ?",
+            (*statuses, limit))]
+
+    def identify_counts(self):
+        return {row[0]: row[1] for row in self.db.execute(
+            "SELECT status, COUNT(*) FROM identify_results GROUP BY status")}
+
+    def identified_paths(self):
+        return {row[0] for row in self.db.execute("SELECT path FROM identify_results")}
+
+    def set_identify_status(self, path, status):
+        with self.db:
+            self.db.execute("UPDATE identify_results SET status=?, updated=? WHERE path=?", (status, now(), path))
+
+    def add_backup(self, batch, path, backup, applied):
+        with self.db:
+            return self.db.execute(
+                "INSERT INTO tag_backups(batch, path, created, backup, applied) VALUES(?,?,?,?,?)",
+                (batch, path, now(), json.dumps(backup, ensure_ascii=False),
+                 json.dumps(applied, ensure_ascii=False))).lastrowid
+
+    def backups(self, batch=None, limit=500):
+        query = "SELECT * FROM tag_backups WHERE restored=0"
+        args = []
+        if batch is not None:
+            query += " AND batch=?"
+            args.append(batch)
+        rows = self.db.execute(query + " ORDER BY id DESC LIMIT ?", (*args, limit)).fetchall()
+        return [dict(row, backup=json.loads(row["backup"]), applied=json.loads(row["applied"])) for row in rows]
+
+    def mark_restored(self, backup_id):
+        with self.db:
+            self.db.execute("UPDATE tag_backups SET restored=1 WHERE id=?", (backup_id,))
+
+    def kept_cover_keys(self):
+        """Covers that must survive cache cleanups: originals in backups and not-yet-applied proposals."""
+        keys = set()
+        for (text,) in self.db.execute("SELECT backup FROM tag_backups WHERE restored=0"):
+            keys.add(json.loads(text).get("cover") or "")
+        for (text,) in self.db.execute("SELECT changes FROM identify_results WHERE status IN ('auto','review')"):
+            keys.add(json.loads(text).get("cover") or "")
+        keys.discard("")
+        return keys
 

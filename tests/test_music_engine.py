@@ -122,6 +122,29 @@ class PlayerTests(unittest.TestCase):
                 self.ended.clear()
                 self.started.clear()
 
+    def test_seek_racing_a_gapless_switch_never_deadlocks(self):
+        # Regression: a flushing seek while playbin switched tracks gaplessly froze the whole app.
+        import faulthandler
+        faulthandler.dump_traceback_later(90, exit=True)  # if it ever regresses, fail loudly instead of hanging
+        try:
+            first = make_audio(Path(self.temp.name) / "a.wav", seconds=0.1)
+            second = make_audio(Path(self.temp.name) / "b.wav", seconds=0.1)
+            for attempt in range(60):
+                player = self.player()
+                try:
+                    player.load(first)
+                    player.set_next(second)
+                    busy = time.monotonic() + (attempt % 10) * 0.004
+                    while time.monotonic() < busy:
+                        pass  # the UI thread doing other work while the stream drains
+                    player.set_rate(1.25 if attempt % 2 else 1.0)
+                    player.seek(0.05)
+                    pump(lambda: False, 0.03)
+                finally:
+                    player.close()
+        finally:
+            faulthandler.cancel_dump_traceback_later()
+
     def test_fade_out_then_pause(self):
         track = make_audio(Path(self.temp.name) / "fade.wav", seconds=3)
         player = self.player()

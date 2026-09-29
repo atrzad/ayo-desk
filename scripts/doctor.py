@@ -42,6 +42,8 @@ def main():
         ["gst-inspect-1.0", "--exists", name], check=False).returncode != 0]
     print(f"{'OK' if not missing else 'AVISO':5} {'GStreamer':18} "
           + ("efeitos de áudio disponíveis" if not missing else "faltam: " + ", ".join(missing)))
+    found = shutil.which("songrec") is not None
+    print(f"{'OK' if found else 'AVISO':5} {'songrec':18} reconhecer músicas pelo som (sudo pacman -S songrec)")
     families = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True,
                               check=False).stdout if shutil.which("fc-list") else ""
     for family, package, purpose in (("Noto Sans", "noto-fonts", "textos em geral"),

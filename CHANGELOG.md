@@ -19,6 +19,10 @@
   barra de progresso em forma de onda e visualizador de espectro.
 - Visualizador estilo CAVA embutido (usa o `cava` instalado; barras, espelhado, onda ou pontos; faixa opcional
   acima do player) e aviso de fontes faltando para títulos em outras línguas.
+- Organizar biblioteca: identifica músicas pelo nome/tags (Deezer), pelo som (SongRec/Shazam) e pelo MusicBrainz;
+  completa artista, álbum, ano, faixa, gênero, ISRC e troca miniaturas de vídeo pela capa oficial. Grava sozinho
+  quando há certeza, manda o resto para revisão e guarda backup para desfazer. Identificar álbum inteiro.
+- Corrigido: seek durante a troca gapless de faixa podia travar o player.
 
 ## 0.1.2
 

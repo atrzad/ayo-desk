@@ -61,6 +61,7 @@ if args.only == "music":
             output.writeframes(b"\0\0" * 800)
     cache = Store()
     cache.sync_music_folder(original, [])
+    cache.set_setting("music.identify_new", False)  # never search online during the smoke run
     cache.close()
     music_fixture = original, replacement, first, second
 
@@ -144,80 +145,119 @@ def inspect():
                 GLib.timeout_add(100, inspect)
                 return GLib.SOURCE_REMOVE
             original, replacement, first, second = music_fixture
-            if music_stage == 0:
-                assert [page.library.tracks.get_item(n).path for n in range(page.library.tracks.get_n_items())] \
-                    == [str(first)], "A pasta salva deve ser lida automaticamente ao abrir"
-                assert page.library.get(str(first)).title == "Faixa inicial"
-                assert page.library.albums.get_n_items() == 1
-                assert page.status_detail.get_tooltip_text() == str(original)
-                from unittest.mock import patch
+            if music_stage < 2:
+                if music_stage == 0:
+                    assert [page.library.tracks.get_item(n).path for n in range(page.library.tracks.get_n_items())] \
+                        == [str(first)], "A pasta salva deve ser lida automaticamente ao abrir"
+                    assert page.library.get(str(first)).title == "Faixa inicial"
+                    assert page.library.albums.get_n_items() == 1
+                    assert page.status_detail.get_tooltip_text() == str(original)
+                    from unittest.mock import patch
 
-                class SelectedFolder:
-                    def __init__(self, **_kwargs):
-                        pass
+                    class SelectedFolder:
+                        def __init__(self, **_kwargs):
+                            pass
 
-                    def set_initial_folder(self, folder):
-                        assert folder.get_path() == str(original)
+                        def set_initial_folder(self, folder):
+                            assert folder.get_path() == str(original)
 
-                    def select_folder(self, parent, _cancel, callback):
-                        assert parent is window
-                        callback(self, None)
+                        def select_folder(self, parent, _cancel, callback):
+                            assert parent is window
+                            callback(self, None)
 
-                    def select_folder_finish(self, _result):
-                        return Gio.File.new_for_path(str(replacement))
+                        def select_folder_finish(self, _result):
+                            return Gio.File.new_for_path(str(replacement))
 
-                music_stage = 1
-                with patch("ayo_desk.music.ui.window.Gtk.FileDialog", SelectedFolder):
-                    page.choose_folder()
+                    music_stage = 1
+                    with patch("ayo_desk.music.ui.window.Gtk.FileDialog", SelectedFolder):
+                        page.choose_folder()
+                    GLib.timeout_add(100, inspect)
+                    return GLib.SOURCE_REMOVE
+                paths = [page.library.tracks.get_item(n).path for n in range(page.library.tracks.get_n_items())]
+                assert paths == [str(second)], "Trocar de pasta deve atualizar a biblioteca"
+                assert window.store.music_folder() == str(replacement)
+                assert page.rescan_button.get_sensitive()
+                assert first.is_file(), "A troca de pasta não pode apagar arquivos"
+                page.play_all()
+                assert page.current_path == str(second), "Tocar tudo deve começar a reprodução"
+                assert page.bar.title.get_text() == "Faixa da nova pasta"
+                for view in ("now", "queue", "songs", "albums", "artists", "genres", "folders"):
+                    page.show_view(view)
+                    assert page.stack.get_visible_child_name() == view
+                page.open_album_of(page.library.get(str(second)))
+                for text, expected in (("NOVA pasta", 1), ("não existe nada assim", 0), ("", 1)):
+                    page.search_entry.set_text(text)
+                    page.on_search(page.search_entry)  # the entry itself waits a moment before searching
+                    assert page.songs.table.count() == expected, (text, page.songs.table.count())
+                page.enqueue([str(first), str(second)])
+                assert page.queue.items() == [str(second), str(first), str(second)]
+                page.move_in_queue(2, 1)
+                assert page.queue.items() == [str(second), str(second), str(first)]
+                page.show_view("queue")
+                page.set_sleep(15)
+                assert "15 min" in page.sleep_text()
+                page.set_sleep(None)
+                page.set_rate(1.25)
+                assert page.player.rate == 1.25 and window.store.setting("music.rate") == 1.25
+                page.set_rate(1.0)
+                playlist = page.music.create_playlist("Teste", [str(second)])
+                page.refresh_playlists()
+                page.show_playlist(playlist)
+                assert page.stack.get_visible_child_name() == "playlist"
+                assert page.playlist_view.table.count() == 1
+                page.add_to_playlist(playlist, [str(first)])
+                page.add_to_playlist(playlist, [str(first)])  # duplicates are skipped
+                assert page.music.playlist_paths(playlist) == [str(second), str(first)]
+                page.playlist_view.reorder([1], 0)
+                assert page.music.playlist_paths(playlist) == [str(first), str(second)]
+                assert page.playlist_view.table.count() == 2
+                assert page.rows[f"playlist:{playlist}"].label.get_text() == "Teste"
+                page.playlist_view.table.play_from(1)
+                assert page.current_path == str(second)
+                page.remove_from_playlist(playlist, [0])
+                assert page.music.playlist_paths(playlist) == [str(second)]
+                assert page.keep_running(), "Fechar a janela tocando deve manter a música"
+                window.close()
+                assert not window.get_visible() and not window.closed
+                window.present()
+                from ayo_desk.music.identify import writer
+                if writer.available():  # identification writes tags, which needs python-mutagen
+
+                    class FakeIdentifier:
+                        def identify(self, info):
+                            return {"path": info["path"], "mtime_ns": info.get("mtime_ns"), "status": "auto",
+                                    "confidence": 97, "source": "deezer", "reasons": ["teste"], "candidates": [],
+                                    "changes": {"artist": "Artista Identificado", "album": "Álbum Identificado"},
+                                    "isrc": "", "proposed": {}, "current": {"title": "Faixa da nova pasta", "cover": ""}}
+                    page.organizer.identifier = lambda: FakeIdentifier()
+                    page.show_view("organize")
+                    page.organizer.start([str(second)], confirm=False)
+                    music_stage, music_deadline = 2, time.monotonic() + 15
+                    GLib.timeout_add(100, inspect)
+                    return GLib.SOURCE_REMOVE
+            if music_stage == 2:
+                track = page.library.get(str(second))
+                if track is None or track.artist != "Artista Identificado":
+                    assert time.monotonic() < music_deadline, "A identificação automática não gravou a tag"
+                    GLib.timeout_add(100, inspect)
+                    return GLib.SOURCE_REMOVE
+                assert page.music.identify_result(str(second))["status"] == "applied"
+                backups = page.music.backups()
+                assert [b["path"] for b in backups] == [str(second)], backups
+                assert page.organizer.view.lists["applied"][0].get_first_child() is not None, "Lista de aplicadas vazia"
+                page.organizer.undo(backups)
+                music_stage, music_deadline = 3, time.monotonic() + 15
                 GLib.timeout_add(100, inspect)
                 return GLib.SOURCE_REMOVE
-            paths = [page.library.tracks.get_item(n).path for n in range(page.library.tracks.get_n_items())]
-            assert paths == [str(second)], "Trocar de pasta deve atualizar a biblioteca"
-            assert window.store.music_folder() == str(replacement)
-            assert page.rescan_button.get_sensitive()
-            assert first.is_file(), "A troca de pasta não pode apagar arquivos"
-            page.play_all()
-            assert page.current_path == str(second), "Tocar tudo deve começar a reprodução"
-            assert page.bar.title.get_text() == "Faixa da nova pasta"
-            for view in ("now", "queue", "songs", "albums", "artists", "genres", "folders"):
-                page.show_view(view)
-                assert page.stack.get_visible_child_name() == view
-            page.open_album_of(page.library.get(str(second)))
-            for text, expected in (("NOVA pasta", 1), ("não existe nada assim", 0), ("", 1)):
-                page.search_entry.set_text(text)
-                page.on_search(page.search_entry)  # the entry itself waits a moment before searching
-                assert page.songs.table.count() == expected, (text, page.songs.table.count())
-            page.enqueue([str(first), str(second)])
-            assert page.queue.items() == [str(second), str(first), str(second)]
-            page.move_in_queue(2, 1)
-            assert page.queue.items() == [str(second), str(second), str(first)]
-            page.show_view("queue")
-            page.set_sleep(15)
-            assert "15 min" in page.sleep_text()
-            page.set_sleep(None)
-            page.set_rate(1.25)
-            assert page.player.rate == 1.25 and window.store.setting("music.rate") == 1.25
-            page.set_rate(1.0)
-            playlist = page.music.create_playlist("Teste", [str(second)])
-            page.refresh_playlists()
-            page.show_playlist(playlist)
-            assert page.stack.get_visible_child_name() == "playlist"
-            assert page.playlist_view.table.count() == 1
-            page.add_to_playlist(playlist, [str(first)])
-            page.add_to_playlist(playlist, [str(first)])  # duplicates are skipped
-            assert page.music.playlist_paths(playlist) == [str(second), str(first)]
-            page.playlist_view.reorder([1], 0)
-            assert page.music.playlist_paths(playlist) == [str(first), str(second)]
-            assert page.playlist_view.table.count() == 2
-            assert page.rows[f"playlist:{playlist}"].label.get_text() == "Teste"
-            page.playlist_view.table.play_from(1)
-            assert page.current_path == str(second)
-            page.remove_from_playlist(playlist, [0])
-            assert page.music.playlist_paths(playlist) == [str(second)]
-            assert page.keep_running(), "Fechar a janela tocando deve manter a música"
-            window.close()
-            assert not window.get_visible() and not window.closed
-            window.present()
+            if music_stage == 3:
+                track = page.library.get(str(second))
+                if track is None or track.artist == "Artista Identificado":
+                    assert time.monotonic() < music_deadline, "Desfazer não restaurou a tag"
+                    GLib.timeout_add(100, inspect)
+                    return GLib.SOURCE_REMOVE
+                assert page.music.backups() == [], "O backup desfeito não pode continuar pendente"
+                assert page.music.identify_result(str(second))["status"] == "rejected"
+                print("PASS identificação: gravou a tag, listou em Aplicadas e desfez", flush=True)
         print(f"PASS UI: {key} ({application_id})", flush=True)
     except Exception:
         exception_hook(*sys.exc_info())

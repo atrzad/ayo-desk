@@ -23,6 +23,7 @@ from .equalizer import EqualizerDialog
 from .integration import Integration
 from .model import Library, artist_names
 from .now_playing import NowPlaying
+from .organize import Organizer
 from .playback_menu import PlaybackMenu
 from .playlists import PlaylistView, ask_name
 from .player_bar import PlayerBar
@@ -41,6 +42,7 @@ SECTIONS = (
                     ("artists", "Artistas", "avatar-default-symbolic"),
                     ("genres", "Gêneros", "view-grid-symbolic"),
                     ("folders", "Pastas", "folder-music-symbolic"))),
+    ("Ferramentas", (("organize", "Organizar biblioteca", "edit-find-replace-symbolic"),)),
 )
 BIND = GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE
 SAVE_EVERY = 10.0
@@ -120,9 +122,11 @@ class MusicPage(Gtk.Box):
         self.genres = genres_view(self)
         self.folders = folders_view(self)
         self.playlist_view = PlaylistView(self)
+        self.organizer = Organizer(self)
         for name, widget in (("now", self.now_view), ("queue", self.queue_view), ("songs", self.songs),
                              ("albums", self.albums), ("artists", self.artists), ("genres", self.genres),
                              ("folders", self.folders), ("playlist", self.playlist_view),
+                             ("organize", self.organizer.view),
                              ("welcome", self._build_welcome())):
             self.stack.add_named(widget, name)
         self._add_breakpoints()
@@ -140,6 +144,7 @@ class MusicPage(Gtk.Box):
             self.notify("Faltam codecs de áudio. Instale gst-plugins-base, gst-plugins-good e gst-libav.")
         self.reload_library()
         self.refresh_playlists()
+        self.update_organize_badge()
         self.restore_session()
         self.show_view("songs" if self.library.tracks.get_n_items() else "welcome")
         self.timer = GLib.timeout_add(500, self.tick)
@@ -165,7 +170,8 @@ class MusicPage(Gtk.Box):
                       "go-artist": lambda p: self.open_artist(self.library.get(p[0]).display_artist),
                       "properties": lambda p: show_properties(self.window, self.library.get(p[0])),
                       "open-folder": lambda p: open_containing_folder(self.window, p[0]),
-                      "remove": self.remove, "new-playlist-with": self.new_playlist}
+                      "remove": self.remove, "new-playlist-with": self.new_playlist,
+                      "identify": lambda p: self.organizer.start(p)}
         for name, callback in with_paths.items():
             action = Gio.SimpleAction.new(name, GLib.VariantType.new("as"))
             action.connect("activate", lambda _a, value, c=callback: c(value.unpack()))
@@ -318,6 +324,20 @@ class MusicPage(Gtk.Box):
             return
         self.show_view(row.view)
 
+    def update_organize_badge(self):
+        """Sidebar counter of corrections waiting for review."""
+        row = self.rows.get("organize")
+        if row is None:
+            return
+        count = self.music.identify_counts().get("review", 0)
+        if not hasattr(row, "badge"):
+            row.badge = Gtk.Label()
+            row.badge.add_css_class("caption")
+            row.badge.add_css_class("dim-label")
+            row.get_child().append(row.badge)
+        row.badge.set_text(str(count) if count else "")
+        row.badge.set_visible(bool(count))
+
     def refresh_playlists(self):
         """Rebuild the "Playlists" section of the sidebar (names, counts, drop targets)."""
         for row in self.playlist_rows:
@@ -442,12 +462,19 @@ class MusicPage(Gtk.Box):
         menu.append_section(None, playlists)
         if len(tracks) == 1:
             go = Gio.Menu()
-            for title, action in (("Ir para o álbum", "music.go-album"), ("Ir para o artista", "music.go-artist"),
+            for title, action in (("Identificar", "music.identify"),
+                                  ("Ir para o álbum", "music.go-album"), ("Ir para o artista", "music.go-artist"),
                                   ("Propriedades", "music.properties"), ("Abrir pasta", "music.open-folder")):
                 item = Gio.MenuItem.new(title, None)
                 item.set_action_and_target_value(action, paths)
                 go.append_item(item)
             menu.append_section(None, go)
+        if len(tracks) > 1:
+            several = Gio.Menu()
+            item = Gio.MenuItem.new(f"Identificar {len(tracks)} músicas", None)
+            item.set_action_and_target_value("music.identify", paths)
+            several.append_item(item)
+            menu.append_section(None, several)
         remove = Gio.Menu()
         item = Gio.MenuItem.new("Remover da biblioteca" if len(tracks) == 1 else
                                 f"Remover {len(tracks)} músicas da biblioteca", None)
@@ -1045,14 +1072,16 @@ class MusicPage(Gtk.Box):
                     self.store.sync_music_folder(root, found)
                 self.music.save_meta(changed)
                 self.music.prune_meta(self.store.tracks())
+                fresh = [meta["path"] for meta in changed]
             except sqlite3.Error as exc:
                 self.notify(f"Não foi possível salvar a biblioteca: {exc}")
             else:
-                keep = self.music.cover_keys()
+                keep = self.music.cover_keys() | self.music.kept_cover_keys()
                 background(lambda: cover_cache.prune(keep), lambda *_: None)
                 self.reload_library()
                 self.watch_folder()
                 self.sound.start_library()
+                self.organizer.identify_new(fresh)
                 if self.library.tracks.get_n_items() and self.stack.get_visible_child_name() == "welcome":
                     self.show_view("albums")
         self.update_status()
@@ -1318,6 +1347,7 @@ class MusicPage(Gtk.Box):
         self.save_session()
         self.system.close()
         self.sound.close()
+        self.organizer.close()
         self.cava.stop()
         if self.volume_timer:
             self._save_volume()

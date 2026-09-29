@@ -1,0 +1,39 @@
+{
+ "data": [
+  {
+   "id": 2101916957,
+   "title": "Otário",
+   "title_short": "Otário",
+   "duration": 229,
+   "rank": 405774,
+   "artist": {
+    "id": 8791452,
+    "name": "Seu Pereira e Coletivo 401"
+   },
+   "album": {
+    "id": 394813617,
+    "title": "Eu Não Sou Boa Influência pra Você",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/389d61b6d4d782715a0a4d4d9289331c/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/389d61b6d4d782715a0a4d4d9289331c/500x500-000000-80-0-0.jpg"
+   }
+  },
+  {
+   "id": 548218762,
+   "title": "Otário (Ao Vivo)",
+   "title_short": "Otário",
+   "duration": 223,
+   "rank": 204201,
+   "artist": {
+    "id": 8791452,
+    "name": "Seu Pereira e Coletivo 401"
+   },
+   "album": {
+    "id": 71976392,
+    "title": "Seu Pereira e Coletivo 401 no Estúdio Showlivre (Ao Vivo)",
+    "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8d6d2a59125cdc066d6390310ad7a4eb/1000x1000-000000-80-0-0.jpg",
+    "cover_big": "https://cdn-images.dzcdn.net/images/cover/8d6d2a59125cdc066d6390310ad7a4eb/500x500-000000-80-0-0.jpg"
+   }
+  }
+ ],
+ "total": 2
+}

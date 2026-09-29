@@ -1,0 +1,181 @@
+{
+ "recordings": [
+  {
+   "id": "263c3609-5ea4-47dc-91f3-ee82a6ff44be",
+   "title": "Hero vs. Villain (epilogue)",
+   "length": 175000,
+   "score": 100,
+   "artist-credit": [
+    {
+     "joinphrase": " feat. ",
+     "name": "MF DOOM",
+     "artist": {
+      "id": "188711ed-c99b-439c-844a-ca831f63a727",
+      "name": "MF DOOM",
+      "sort-name": "MF DOOM",
+      "aliases": [
+       {
+        "sort-name": "Super Villain, The",
+        "name": "The Super Villain",
+        "locale": null,
+        "type": null,
+        "primary": null,
+        "begin-date": null,
+        "end-date": null
+       },
+       {
+        "sort-name": "DOOM",
+        "name": "DOOM",
+        "locale": null,
+        "type": null,
+        "primary": null,
+        "begin-date": null,
+        "end-date": null
+       },
+       {
+        "sort-name": "M.F. DOOM",
+        "name": "M.F. DOOM",
+        "locale": null,
+        "type": null,
+        "primary": null,
+        "begin-date": null,
+        "end-date": null
+       },
+       {
+        "sort-name": "Metal Fingered Villain… DOOM, The",
+        "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+        "name": "The Metal Fingered Villain… DOOM",
+        "locale": null,
+        "type": "Artist name",
+        "primary": null,
+        "begin-date": null,
+        "end-date": null
+       },
+       {
+        "sort-name": "Metal Fingaz DOOM",
+        "name": "Metal Fingaz DOOM",
+        "locale": null,
+        "type": null,
+        "primary": null,
+        "begin-date": null,
+        "end-date": null
+       },
+       {
+        "sort-name": "Metal Fingerz DOOM",
+        "name": "Metal Fingerz DOOM",
+        "locale": null,
+        "type": null,
+        "primary": null,
+        "begin-date": null,
+        "end-date": null
+       }
+      ]
+     }
+    },
+    {
+     "name": "E. Mason",
+     "artist": {
+      "id": "bfd593ae-f9b1-4255-9ff1-16fdcb1b121c",
+      "name": "E. Mason",
+      "sort-name": "Mason, E."
+     }
+    }
+   ],
+   "releases": [
+    {
+     "id": "b28481ce-edb0-4cff-91e9-21093c30253a",
+     "title": "Operation: Doomsday",
+     "date": "",
+     "release-group": {
+      "id": "66f1ac02-2eb6-31dc-ab33-6eaa603f41cd",
+      "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "title": "Operation: Doomsday",
+      "primary-type": "Album"
+     },
+     "media": [
+      {
+       "id": "bf32b305-1ef6-4997-b92a-dc313f0f443e",
+       "position": 1,
+       "format": "CD",
+       "track": [
+        {
+         "id": "c352fc4e-25d8-4162-8f0d-2bdda182a58f",
+         "number": "19",
+         "title": "Hero vs. Villain (Epilogue)",
+         "length": 175000
+        }
+       ],
+       "track-count": 19,
+       "track-offset": 18
+      }
+     ],
+     "status": "Official"
+    },
+    {
+     "id": "81a1bc18-3794-4e46-afc4-492b7f4b3939",
+     "title": "Operation: Doomsday",
+     "date": "2012-05-22",
+     "release-group": {
+      "id": "66f1ac02-2eb6-31dc-ab33-6eaa603f41cd",
+      "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "title": "Operation: Doomsday",
+      "primary-type": "Album"
+     },
+     "media": [
+      {
+       "id": "cd22af08-1717-3618-b4b5-433b451d263c",
+       "position": 2,
+       "format": "12\" Vinyl",
+       "track": [
+        {
+         "id": "95a27ab9-61e9-4f71-a861-9c181fbc423e",
+         "number": "D4",
+         "title": "Hero vs. Villain (Epilogue)",
+         "length": 175000
+        }
+       ],
+       "track-count": 9,
+       "track-offset": 8
+      }
+     ],
+     "status": "Official"
+    },
+    {
+     "id": "0f6a17e6-b9d7-4a9a-af7d-665dcb5da460",
+     "title": "Operation: Doomsday",
+     "date": "2011-10-25",
+     "release-group": {
+      "id": "66f1ac02-2eb6-31dc-ab33-6eaa603f41cd",
+      "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "title": "Operation: Doomsday",
+      "primary-type": "Album"
+     },
+     "media": [
+      {
+       "id": "7f8d4dbd-0864-3ec3-ab3f-6066b014beae",
+       "position": 1,
+       "format": "CD",
+       "track": [
+        {
+         "id": "a9535167-02eb-37c9-8cc1-0f18c80e7c9a",
+         "number": "19",
+         "title": "Hero vs. Villain (Epilogue)",
+         "length": 175000
+        }
+       ],
+       "track-count": 19,
+       "track-offset": 18
+      }
+     ],
+     "status": "Official"
+    }
+   ],
+   "isrcs": [
+    "US2S71104019"
+   ]
+  }
+ ]
+}

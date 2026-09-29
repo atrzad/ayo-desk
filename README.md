@@ -18,7 +18,7 @@ Ferramentas nativas para Arch Linux, feitas em **Python + GTK4/libadwaita**, com
 Use o Python do sistema; PyGObject vem do pacote `python-gobject`, sem necessidade de pip ou venv.
 
 ```sh
-sudo pacman -S --needed base-devel python python-gobject gtk4 libadwaita libnm networkmanager libpulse bluez gstreamer gst-plugins-base gst-plugins-good gst-libav dnsmasq python-mutagen
+sudo pacman -S --needed base-devel python python-gobject gtk4 libadwaita libnm networkmanager libpulse bluez gstreamer gst-plugins-base gst-plugins-good gst-libav dnsmasq python-mutagen songrec
 # Fontes para títulos em outras línguas e emojis (recomendado):
 sudo pacman -S --needed noto-fonts noto-fonts-cjk noto-fonts-emoji noto-fonts-extra
 ```
@@ -97,6 +97,13 @@ Na barra lateral ficam Tocando agora, Fila, Músicas, Álbuns, Artistas, Gênero
 **Atalhos.** `Espaço` toca/pausa, `Ctrl+←/→` anterior/próxima, `Shift+←/→` volta/avança 5 s, `Ctrl+↑/↓` volume, `M` silencia, `S` ordem aleatória, `R` repetir, `Ctrl+F` busca, `Ctrl+1…5` troca de tela, `Ctrl+,` preferências e `Ctrl+?` mostra todos os atalhos.
 
 **Playlists.** Crie playlists em **Nova playlist** na barra lateral (ou no menu principal), pelo botão direito numa ou várias músicas (**Adicionar à playlist → Nova playlist…**) ou salvando a fila atual. Para adicionar músicas, use **Adicionar à playlist** no menu de contexto ou arraste as músicas de qualquer lista até o nome da playlist na barra lateral; músicas repetidas são ignoradas. Dentro da playlist, arraste as linhas para mudar a ordem e use **Remover desta playlist** no botão direito. O menu ⋮ da playlist renomeia, exclui e exporta como M3U8 (com caminhos relativos, que funcionam em outros players); **Importar playlist (M3U)…** lê M3U, M3U8 e PLS de outros programas. Arquivos da playlist que saíram da biblioteca continuam na lista, esmaecidos.
+
+**Identificar músicas e completar os metadados.** Em **Ferramentas → Organizar biblioteca** o Ayo mostra o que está faltando (artista, álbum, ano, número da faixa e capas que são miniaturas de vídeo) e identifica as músicas:
+1. Primeiro pelo nome e pelas tags. Ele limpa o que os downloaders do YouTube deixam, como "Artista - Topic", "(Official Video)", "(MP3_160K)" e `_` no lugar de `:` ou `'`, e busca no **Deezer**.
+2. Se não tiver certeza, reconhece **pelo som** com o **SongRec** (cliente livre do Shazam, que envia só a impressão digital do áudio).
+3. Como reserva, usa o **MusicBrainz**, com capa do Cover Art Archive.
+
+O Deezer completa título, artista, álbum, artista do álbum, data, faixa, gênero, ISRC e a **capa oficial em 1000×1000**. Quando título, artista e duração batem (±4 s), a correção é **gravada sozinha no arquivo**. Coletâneas, versões diferentes e durações diferentes vão para **Para revisar**, com antes e depois, a capa nova ao lado da antiga, a confiança e **Outras opções / Buscar**. Antes de gravar, as tags e a capa antigas são guardadas: **Desfazer** funciona por música ou para o lote inteiro. Também dá para usar **Identificar** no menu de contexto e o botão de **Identificar álbum** na página do álbum, que casa as faixas pelo título e pela duração. Músicas novas na pasta são identificadas sozinhas (desligável em **Preferências → Metadados**). O áudio, os nomes dos arquivos e as letras nunca são alterados.
 
 **Som.** Em **Preferências → Som**: nivelamento de volume (usa as tags ReplayGain quando existem e mede o resto em segundo plano; no modo automático, álbuns tocados em ordem mantêm a dinâmica original), pré-amplificação, crossfade de 0 a 12 s (faixas seguidas do mesmo álbum continuam emendadas sem intervalo) e pausa suave. O **Equalizador** (na tela Tocando agora ou no botão de relógio) tem 10 bandas, presets e presets próprios. A barra do player mostra a forma de onda da música; clique ou arraste para ir a qualquer ponto. O botão **Visualizador** em Tocando agora mostra as barras do som. Com o `cava` instalado, o Ayo roda o CAVA por baixo (reage a todo o som do computador); sem ele, usa o próprio espectro, sincronizado com o que se ouve. Em Preferências → Som dá para escolher estilo (barras, espelhado, onda, pontos), número de barras e uma faixa fina acima da barra do player. Se algum título tiver caracteres sem fonte instalada (japonês, árabe, emoji...), o app avisa qual pacote `noto-fonts-*` instalar.
 

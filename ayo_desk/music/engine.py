@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import re
+import threading
 import time
 
 import gi
@@ -139,6 +140,11 @@ class Player:
         self.eq_bands = [0.0] * 10
         self._pending = None       # path handed to playbin in about-to-finish
         self._pending_gain = 1.0
+        # A flushing seek while playbin switches tracks gaplessly deadlocks GStreamer. The lock makes
+        # the two exclusive: the switch is skipped during a seek, and seeks wait for the switch.
+        self._switch_lock = threading.Lock()
+        self._switching = False
+        self._deferred_seek = None
         self._pending_seek = None
         self._needs_rate = False
         self._volume = 1.0         # what the user chose (0..1, cubic)
@@ -208,7 +214,7 @@ class Player:
         deck.path = self.path = str(path)
         deck.set_gain(gain)
         deck.set_eq(self.eq_bands)
-        self._pending = None
+        self._reset_switch()
         self.stream_tags = {}
         self.title, self.artist = (Path(path).stem, Path(path).parent.name) if not remote else (str(path), "")
         deck.playbin.set_property("uri", uri_for(path))
@@ -230,13 +236,33 @@ class Player:
     def _about_to_finish(self, playbin, deck):
         # Streaming thread: only hand over what the main thread already decided.
         upcoming = self.next_path
-        # At a speed other than 1× the next track needs a seek to apply the rate, and seeking during
-        # playbin's gapless switch deadlocks; so those transitions use a normal load instead.
-        if self.rate != 1.0:
+        # At a speed other than 1× the next track needs a seek to apply the rate; those transitions
+        # use a normal load instead of a gapless switch.
+        if self.rate != 1.0 or deck is not self.deck or self._xfade is not None:
             return
-        if deck is self.deck and self._xfade is None and upcoming and ("://" in upcoming or os.path.isfile(upcoming)):
+        if not upcoming or not ("://" in upcoming or os.path.isfile(upcoming)):
+            return
+        if not self._switch_lock.acquire(blocking=False):
+            return  # a seek is running on the main thread: this track ends normally instead
+        try:
             self._pending, self._pending_gain = upcoming, self.next_gain
+            self._switching = True
             playbin.set_property("uri", uri_for(upcoming))
+        finally:
+            self._switch_lock.release()
+
+    def _switch_settled(self):
+        """A moment after the new stream started, seeking is safe again."""
+        self._switching = False
+        seconds, self._deferred_seek = self._deferred_seek, None
+        if seconds is not None and self.path:
+            self.seek(seconds)
+        return False
+
+    def _reset_switch(self):
+        self._pending = None
+        self._switching = False
+        self._deferred_seek = None
 
     def toggle(self, fade=0.0):
         if not self.available or not self.path:
@@ -275,7 +301,7 @@ class Player:
             deck.stop()
         self.playing = False
         self.path = None
-        self._pending = None
+        self._reset_switch()
         self.title, self.artist = "Nenhuma música selecionada", "Selecione uma faixa da biblioteca."
         self.changed()
 
@@ -296,7 +322,7 @@ class Player:
         new.path = self.path = str(Path(path).resolve()) if "://" not in str(path) else str(path)
         new.playbin.set_property("uri", uri_for(new.path))
         self.deck = new
-        self._pending = None
+        self._reset_switch()
         self.stream_tags = {}
         self.title, self.artist = Path(self.path).stem, Path(self.path).parent.name
         self._needs_rate = self.rate != 1.0
@@ -418,15 +444,16 @@ class Player:
         if not (self.available and self.path):
             return False
         self._finish_crossfade()
-        return self.playbin.seek(self.rate, Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
-                                 Gst.SeekType.SET, int(max(0, seconds) * Gst.SECOND), Gst.SeekType.NONE, -1)
+        with self._switch_lock:
+            if self._switching:
+                self._deferred_seek = seconds  # applied by _switch_settled
+                return True
+            return self.playbin.seek(self.rate, Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
+                                     Gst.SeekType.SET, int(max(0, seconds) * Gst.SECOND), Gst.SeekType.NONE, -1)
 
     def set_rate(self, rate):
         self.rate = max(MIN_RATE, min(MAX_RATE, round(float(rate), 2)))
-        if self._pending:
-            # playbin is switching tracks (gapless): a flushing seek now deadlocks; apply it after.
-            self._rate_after_switch = True
-        elif self.path:
+        if self.path:
             self.seek(self.position()[0])
 
     def running_time(self):
@@ -471,12 +498,13 @@ class Player:
             error, _debug = message.parse_error()
             deck.stop()
             self.playing = False
-            self._pending = None
+            self._reset_switch()
             self.error(str(error))
             self.changed()
         elif kind == Gst.MessageType.EOS:
             deck.playbin.set_state(Gst.State.NULL)
             self.playing = False
+            self._reset_switch()
             self.eos()
         elif kind == Gst.MessageType.STREAM_START:
             if self._pending:
@@ -486,9 +514,7 @@ class Player:
                 deck.set_gain(self._pending_gain)
                 self.stream_tags = {}
                 self.title, self.artist = Path(self.path).stem, Path(self.path).parent.name
-                if getattr(self, "_rate_after_switch", False):
-                    self._rate_after_switch = False
-                    GLib.timeout_add(250, lambda: (self.path and self.seek(self.position()[0])) and False)
+                GLib.timeout_add(300, self._switch_settled)
                 self.started(self.path)
                 self.changed()
         elif kind == Gst.MessageType.ASYNC_DONE and (self._pending_seek is not None or self._needs_rate):

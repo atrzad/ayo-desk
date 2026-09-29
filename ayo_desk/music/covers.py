@@ -97,6 +97,18 @@ def path(key, thumbnail=True):
     return None
 
 
+def dimensions(key):
+    """(width, height) of a cached cover, read from its PNG thumbnail header (no image decoding)."""
+    thumb = path(key)
+    if thumb is None:
+        return None
+    with open(thumb, "rb") as handle:
+        header = handle.read(24)
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    return int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")
+
+
 def prune(keep):
     """Delete cached covers no longer referenced by any track."""
     folder = cache_dir()
