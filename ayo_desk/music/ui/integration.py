@@ -3,6 +3,7 @@ import os
 
 from gi.repository import Adw, Gdk, Gio, Gtk
 
+from ... import paths
 from .. import covers
 from ..mpris import Mpris
 from ..queue import SHUFFLE_OFF
@@ -27,7 +28,7 @@ class Integration:
     def __init__(self, page):
         self.page = page
         self.mpris = None
-        if not os.environ.get("AYO_NO_MPRIS"):
+        if not os.environ.get("AYO_NO_MPRIS") and paths.LINUX:  # MPRIS is a Linux desktop standard
             self.mpris = Mpris.on_session_bus(self)
         keys = Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE)
         keys.connect("key-pressed", self.on_key)

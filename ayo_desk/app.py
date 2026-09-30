@@ -157,6 +157,9 @@ class Application(Adw.Application):
         provider = Gtk.CssProvider()
         provider.load_from_path(str(ROOT / "data/style.css"))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        # Our app icons ship with the code (needed on Windows and when running from the source tree).
+        Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(str(ROOT / "data/icons"))
+        Gtk.Window.set_default_icon_name(self.get_application_id())
         quit_action = Gio.SimpleAction.new("quit", None)
         quit_action.connect("activate", lambda *_: self.window.quit_app() if self.window else self.quit())
         self.add_action(quit_action)

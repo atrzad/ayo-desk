@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+from . import paths
 from .migrations import migrate
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -12,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class Calculator:
     def __init__(self, path=None):
-        self.lib = ctypes.CDLL(str(path or ROOT / "build/libayo.so"))
+        self.lib = ctypes.CDLL(str(path or ROOT / "build" / paths.NATIVE_LIBRARY))
         self.lib.ayo_calculate.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_double),
                                          ctypes.c_char_p, ctypes.c_size_t]
         self.lib.ayo_calculate.restype = ctypes.c_int
@@ -31,7 +32,7 @@ class Calculator:
 class Store:
     def __init__(self, path=None):
         if path is None:
-            base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "ayo-desk"
+            base = paths.data_dir()
             base.mkdir(parents=True, exist_ok=True, mode=0o700)
             path = base / "desk.sqlite3"
         self.db = sqlite3.connect(path)

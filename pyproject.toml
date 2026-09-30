@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ayo-desk"
-version = "0.1.2"
-description = "Aplicativos nativos para Arch Linux, feitos em Python, GTK4 e C"
+version = "0.2.0"
+description = "Aplicativos nativos feitos em Python, GTK4 e C"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -15,6 +15,7 @@ classifiers = [
   "Intended Audience :: End Users/Desktop",
   "License :: OSI Approved :: MIT License",
   "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
   "Programming Language :: C",
   "Programming Language :: Python :: 3",
 ]

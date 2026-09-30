@@ -17,6 +17,7 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst
 
+from .. import paths
 from . import tags
 from .net import USER_AGENT
 
@@ -36,7 +37,7 @@ def binary():
 
 
 def model_dir():
-    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "ayo-desk" / "whisper"
+    return paths.data_dir() / "whisper"
 
 
 def model_path(name="base"):

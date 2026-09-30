@@ -11,6 +11,8 @@ import gi
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, GLib
 
+from .. import paths
+
 THUMB_SIZE = 384
 FOLDER_NAMES = ("cover", "folder", "front", "album", "albumart", "capa")
 FOLDER_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
@@ -18,8 +20,7 @@ SIGNATURES = ((b"\x89PNG", ".png"), (b"\xff\xd8", ".jpg"), (b"GIF8", ".gif"), (b
 
 
 def cache_dir():
-    base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return base / "ayo-desk" / "covers"
+    return paths.cache_dir() / "covers"
 
 
 def extension(data):

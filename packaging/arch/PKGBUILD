@@ -1,0 +1,52 @@
+# Pacote Arch do Ayo, gerado a partir deste repositório (o commit atual, HEAD).
+#   cd packaging/arch && makepkg -si
+pkgname=ayo-desk
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="Ayo: música, calculadora, calendário e ferramentas de rede, áudio e Bluetooth (GTK4)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/atrzad/ayo-desk"
+license=('MIT')
+depends=('glibc' 'python' 'python-gobject' 'gtk4' 'libadwaita' 'gstreamer' 'gst-plugins-base'
+         'gst-plugins-good' 'python-mutagen' 'libnm' 'libpulse' 'hicolor-icon-theme')
+makedepends=('git' 'gcc' 'make')
+checkdepends=('dbus')
+optdepends=('gst-libav: AAC, WMA e outros formatos de áudio'
+            'cava: visualizador que reage a todo o som do computador'
+            'songrec: reconhecer músicas pelo som'
+            'whisper-cpp: sincronizar letras pela voz'
+            'networkmanager: ferramenta de Rede'
+            'bluez: ferramenta de Bluetooth'
+            'dnsmasq: compartilhar a internet pelo cabo'
+            'noto-fonts-cjk: títulos em japonês, chinês e coreano'
+            'noto-fonts-emoji: emojis nos títulos'
+            'noto-fonts-extra: árabe, hebraico, tailandês e outros alfabetos')
+_repo="$(git -C "${startdir:-.}" rev-parse --show-toplevel)"
+
+pkgver() {
+  local version
+  version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$_repo/ayo_desk/__init__.py")
+  printf '%s.r%s.g%s' "$version" "$(git -C "$_repo" rev-list --count HEAD)" "$(git -C "$_repo" rev-parse --short HEAD)"
+}
+
+prepare() {
+  rm -rf "$srcdir/$pkgname"
+  mkdir -p "$srcdir/$pkgname"
+  git -C "$_repo" archive --format=tar HEAD | tar -x -C "$srcdir/$pkgname"
+}
+
+build() {
+  cd "$srcdir/$pkgname"
+  make CFLAGS="$CFLAGS -std=c11 -Wall -Wextra" LDFLAGS="$LDFLAGS"
+}
+
+check() {
+  cd "$srcdir/$pkgname"
+  AYO_NO_MPRIS=1 python -m unittest discover -s tests -q
+}
+
+package() {
+  cd "$srcdir/$pkgname"
+  python scripts/install.py --prefix /usr --destdir "$pkgdir"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

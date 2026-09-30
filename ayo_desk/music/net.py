@@ -3,7 +3,6 @@
 Safe to use from worker threads (one lock per host limiter, one lock for the cache).
 """
 import json
-import os
 from pathlib import Path
 import sqlite3
 import threading
@@ -12,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .. import __version__
+from .. import __version__, paths
 
 USER_AGENT = f"AyoMusica/{__version__} (https://github.com/atrzad/ayo-desk)"
 CACHE_SECONDS = 30 * 24 * 3600
@@ -46,8 +45,7 @@ class Limiter:
 
 class Cache:
     def __init__(self, path=None):
-        base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "ayo-desk"
-        path = Path(path) if path else base / "http-cache.sqlite3"
+        path = Path(path) if path else paths.cache_dir() / "http-cache.sqlite3"
         path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.Lock()
         self.db = sqlite3.connect(path, check_same_thread=False, timeout=10)

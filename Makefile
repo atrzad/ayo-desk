@@ -1,12 +1,20 @@
 CC ?= cc
 CFLAGS ?= -O2 -Wall -Wextra -Werror -std=c11
+# The calculator's C library: libayo.so on Linux, ayo.dll on Windows (MSYS2 sets OS=Windows_NT).
+ifeq ($(OS),Windows_NT)
+NATIVE := build/ayo.dll
+PIC :=
+else
+NATIVE := build/libayo.so
+PIC := -fPIC
+endif
 
 .PHONY: all run test check native-check doctor install uninstall
-all: build/libayo.so
+all: $(NATIVE)
 
-build/libayo.so: native/calc.c
+$(NATIVE): native/calc.c
 	mkdir -p build
-	$(CC) $(CFLAGS) -fPIC -shared $< -o $@ -lm
+	$(CC) $(CFLAGS) $(PIC) -shared $< -o $@ $(LDFLAGS) -lm
 
 run: all
 	python3 -m ayo_desk

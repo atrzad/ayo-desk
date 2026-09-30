@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.ayodesk.Desk</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Ayo</name>
+  <summary>Música, calculadora e calendário em preto e branco</summary>
+  <developer id="io.github.atrzad">
+    <name>Ayo</name>
+  </developer>
+  <description>
+    <p>Três aplicativos independentes, feitos em Python, GTK4 e libadwaita, no mesmo visual preto e branco que segue o tema claro ou escuro do sistema.</p>
+    <ul>
+      <li>Ayo Música: biblioteca por tags e capas, fila, playlists, equalizador, nivelamento de volume,
+        crossfade, tela cheia com visualizador e letras sincronizadas, e identificação de músicas.</li>
+      <li>Ayo Calculadora: expressões com histórico.</li>
+      <li>Ayo Calendário: agenda com eventos.</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.ayodesk.Desk.music.desktop</launchable>
+  <launchable type="desktop-id">io.github.ayodesk.Desk.calculator.desktop</launchable>
+  <launchable type="desktop-id">io.github.ayodesk.Desk.calendar.desktop</launchable>
+  <url type="homepage">https://github.com/atrzad/ayo-desk</url>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <branding>
+    <color type="primary" scheme_preference="light">#f0f0f2</color>
+    <color type="primary" scheme_preference="dark">#18181c</color>
+  </branding>
+  <releases>
+    <release version="0.2.0" date="2026-09-30">
+      <description>
+        <p>Ayo Música completo: biblioteca por tags, som, identificação de músicas, tela cheia com letras.
+          Primeiros pacotes para Arch, Flatpak e Windows.</p>
+      </description>
+    </release>
+    <release version="0.1.2" date="2026-09-25"/>
+  </releases>
+</component>

@@ -1020,7 +1020,10 @@ class MusicPage(Gtk.Box):
 
     def check_fonts(self):
         """Once: if some titles can't be drawn (e.g. no CJK font), say which package to install."""
+        from ... import paths
         from .. import fonts
+        if not paths.LINUX:
+            return False  # the hint names Arch packages
         texts = {t for n in range(self.library.tracks.get_n_items())
                  for t in (self.library.tracks.get_item(n).title, self.library.tracks.get_item(n).display_artist,
                            self.library.tracks.get_item(n).display_album)}
