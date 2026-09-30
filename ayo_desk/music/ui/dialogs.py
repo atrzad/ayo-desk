@@ -134,6 +134,7 @@ def show_preferences(parent, controller):
     dialog.add(page)
     dialog.add(sound_page(controller))
     dialog.add(metadata_page(controller))
+    dialog.add(lyrics_page(controller))
     dialog.present(parent)
     return dialog
 
@@ -232,7 +233,8 @@ def sound_page(controller):
                                                  refresh(True)))
     for row in (source, style, bars):
         visual.add(row)
-    visual.add(_switch(store, "music.visualizer", False, "Mostrar em Tocando agora", "", refresh))
+    visual.add(_switch(store, "music.expanded_visualizer", True, "Ao fundo da tela cheia",
+                       "Atrás da capa e da letra, no player expandido.", refresh))
     visual.add(_switch(store, "music.visualizer_strip", False, "Faixa acima da barra do player",
                        "Uma linha fina de barras sempre visível.", refresh))
     page.add(visual)
@@ -284,5 +286,75 @@ def metadata_page(controller):
     organize.connect("activated", lambda _r: controller.show_view("organize"))
     tools.add(organize)
     page.add(tools)
+    return page
+
+
+def lyrics_page(controller):
+    from gi.repository import GLib
+    from ...tasks import background
+    from .. import voice
+    from .lyrics_manager import HEAVY
+    store = controller.store
+    page = Adw.PreferencesPage(title="Letras", icon_name="format-justify-left-symbolic")
+    group = Adw.PreferencesGroup(title="Letras",
+                                 description="Na tela cheia, a letra acompanha a música. Primeiro vale a letra "
+                                             "ao lado do arquivo (.lrc) ou dentro dele; depois a do LRCLIB.")
+
+    def nothing():
+        pass
+    group.add(_switch(store, "music.lyrics_online", True, "Buscar letras na internet",
+                      "No LRCLIB, banco aberto de letras sincronizadas. Envia artista, título, álbum e duração.",
+                      nothing))
+    page.add(group)
+
+    voice_group = Adw.PreferencesGroup(title="Sincronizar pela voz",
+                                       description="Para letras sem tempos: o whisper.cpp ouve a música no seu "
+                                                   "computador (nada é enviado) e dá o tempo de cada linha.")
+    installed = voice.binary() is not None
+    auto = _switch(store, "music.lyrics_voice", True, "Sincronizar sozinho",
+                   "Quando a letra encontrada não tem tempos e o modelo já foi baixado." if installed
+                   else "Instale o whisper-cpp para usar: sudo pacman -S whisper-cpp", nothing)
+    auto.set_sensitive(installed)
+    voice_group.add(auto)
+    names = list(voice.MODELS)
+    model = Adw.ComboRow(title="Modelo de voz", model=Gtk.StringList.new([voice.MODELS[n][2] for n in names]))
+    model.set_selected(names.index(store.setting("music.lyrics_model", "base")))
+    model.set_sensitive(installed)
+    voice_group.add(model)
+    files = Adw.ActionRow(title="Arquivo do modelo")
+    button = Gtk.Button(valign=Gtk.Align.CENTER)
+    files.add_suffix(button)
+    files.set_sensitive(installed)
+    voice_group.add(files)
+
+    def refresh():
+        name = names[model.get_selected()]
+        present = voice.model_path(name)
+        files.set_subtitle(f"Baixado em {voice.model_dir()}" if present else "Ainda não baixado")
+        button.set_label("Remover" if present else "Baixar")
+        button.set_sensitive(True)
+
+    def clicked(_button):
+        name = names[model.get_selected()]
+        present = voice.model_path(name)
+        if present:
+            present.unlink(missing_ok=True)
+            refresh()
+            return
+        button.set_sensitive(False)
+
+        def progress(done, total):
+            GLib.idle_add(lambda: files.set_subtitle(f"Baixando… {round(done * 100 / max(total, 1))}%") and False)
+
+        def finished(_path, error):
+            refresh()
+            if error:
+                files.set_subtitle(f"Não foi possível baixar: {error}")
+        background(lambda: voice.download(name, progress), finished, HEAVY)
+    button.connect("clicked", clicked)
+    model.connect("notify::selected", lambda row, _p: (store.set_setting("music.lyrics_model",
+                                                                         names[row.get_selected()]), refresh()))
+    refresh()
+    page.add(voice_group)
     return page
 

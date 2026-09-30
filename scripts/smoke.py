@@ -62,6 +62,8 @@ if args.only == "music":
     cache = Store()
     cache.sync_music_folder(original, [])
     cache.set_setting("music.identify_new", False)  # never search online during the smoke run
+    cache.set_setting("music.lyrics_online", False)
+    cache.set_setting("music.lyrics_voice", False)
     cache.close()
     music_fixture = original, replacement, first, second
 
@@ -80,7 +82,7 @@ queue = [args.only] if args.only else list(PAGES)
 
 
 def screenshot(window, name):
-    if not args.snapshots or name not in ("calculator", "calendar", "music"):
+    if not args.snapshots or name.split("-")[0] not in ("calculator", "calendar", "music"):
         return
     snapshot = Gtk.Snapshot.new()
     background = Gdk.RGBA()
@@ -181,9 +183,55 @@ def inspect():
                 page.play_all()
                 assert page.current_path == str(second), "Tocar tudo deve começar a reprodução"
                 assert page.bar.title.get_text() == "Faixa da nova pasta"
-                for view in ("now", "queue", "songs", "albums", "artists", "genres", "folders"):
+                for view in ("queue", "songs", "albums", "artists", "genres", "folders"):
                     page.show_view(view)
                     assert page.stack.get_visible_child_name() == view
+                second.with_name(second.stem + ".lrc").write_text(
+                    "[ar:Teste]\n[00:00.00]Primeira linha da letra\n[00:00.50]Segunda linha da letra\n"
+                    "[00:30.00]Terceira linha\n", encoding="utf-8")
+                page.start(str(second), play=False)  # the test track is 1 s long: keep it loaded, paused
+                page.expand(fullscreen=False)
+                assert page.is_expanded() and page.bar.expand.get_icon_name() == "go-down-symbolic"
+                assert window.header.get_visible(), "Fora da tela cheia a barra de título continua"
+                context, until = GLib.MainContext.default(), time.monotonic() + 5
+                while time.monotonic() < until and not (page.expanded.lyrics_view.labels
+                                                        and page.expanded.lyrics_view.current >= 0):
+                    context.iteration(False)
+                lyrics_view = page.expanded.lyrics_view
+                assert [label.get_text() for label in lyrics_view.labels] == [
+                    "Primeira linha da letra", "Segunda linha da letra", "Terceira linha"], "Letra .lrc não carregou"
+                assert lyrics_view.current in (0, 1), lyrics_view.current
+                assert lyrics_view.labels[lyrics_view.current].has_css_class("current")
+                assert page.expanded.status.get_text() == "Letra: arquivo ao lado da música"
+                page.expanded.manager.shift(500)
+                assert page.music.lyrics_row(str(second))["offset_ms"] == 500, "O ajuste da letra não foi salvo"
+                page.expanded.manager.shift(-500)
+                until = time.monotonic() + 0.6
+                while time.monotonic() < until:
+                    context.iteration(False)
+                screenshot(window, "music-expanded")
+                page.collapse()
+                page.expand(fullscreen=True)
+                until = time.monotonic() + 3
+                while time.monotonic() < until and not window.is_fullscreen():
+                    context.iteration(False)
+                until = time.monotonic() + 1
+                while time.monotonic() < until:
+                    context.iteration(False)
+                if window.is_fullscreen():  # some sessions (e.g. without a compositor) refuse full screen
+                    assert not window.header.get_visible(), "Na tela cheia a barra de título some"
+                    screenshot(window, "music-expanded-full")
+                page.collapse()
+                until = time.monotonic() + 3
+                while time.monotonic() < until and window.is_fullscreen():
+                    context.iteration(False)
+                assert not window.is_fullscreen(), "Recolher sai da tela cheia"
+                assert not page.is_expanded() and window.header.get_visible()
+                page.show_view("songs")
+                page.toggle_expanded()
+                assert page.is_expanded()
+                page.show_view("queue")
+                assert not page.is_expanded(), "Abrir outra tela recolhe o player expandido"
                 page.open_album_of(page.library.get(str(second)))
                 for text, expected in (("NOVA pasta", 1), ("não existe nada assim", 0), ("", 1)):
                     page.search_entry.set_text(text)

@@ -31,6 +31,8 @@ class Cava:
         self.frame = frame
         self.process = None
         self.cancellable = None
+        self.wanted = None        # the arguments of the last start(), while it should keep running
+        self.restart_source = 0
 
     @property
     def running(self):
@@ -38,6 +40,7 @@ class Cava:
 
     def start(self, bars=48, smoothing=True, monstercat=True):
         self.stop()
+        self.wanted = (bars, smoothing, monstercat)
         if not available():
             return False
         folder = Path(os.environ.get("XDG_RUNTIME_DIR") or GLib.get_user_cache_dir()) / "ayo-desk"
@@ -64,15 +67,31 @@ class Cava:
         try:
             line, _length = stream.read_line_finish_utf8(result)
         except GLib.Error:
+            line = None
+        if process is not self.process:
             return
-        if process is not self.process or line is None:
+        if line is None:
+            # cava exits when the audio output changes (headphones on/off, Bluetooth...): start it again.
+            self.process = None
+            if self.wanted and not self.restart_source:
+                self.restart_source = GLib.timeout_add(1500, self._restart)
             return
         levels = parse(line)
         if levels:
             self.frame(levels)
         self._read()
 
+    def _restart(self):
+        self.restart_source = 0
+        if self.wanted:
+            self.start(*self.wanted)
+        return GLib.SOURCE_REMOVE
+
     def stop(self):
+        self.wanted = None
+        if self.restart_source:
+            GLib.source_remove(self.restart_source)
+            self.restart_source = 0
         if self.cancellable is not None:
             self.cancellable.cancel()
         if self.process is not None:

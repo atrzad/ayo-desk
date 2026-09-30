@@ -261,7 +261,7 @@ def read(path, root=None, with_cover=False):
             if with_cover:
                 cover = _cover(audio)
     file = Path(path)
-    if any(file.with_suffix(ext).is_file() for ext in (".lrc", ".LRC")):
+    if any(file.with_name(file.stem + ext).is_file() for ext in (".lrc", ".LRC", "_private.lrc")):
         meta["has_lyrics"] = 1
     inferred = []
     for field, value in infer_from_path(path, root).items():

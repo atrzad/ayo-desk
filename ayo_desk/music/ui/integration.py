@@ -13,12 +13,14 @@ SHORTCUTS = (
                     ("Voltar 5 segundos", "<Shift>Left"), ("Aumentar volume", "<Primary>Up"),
                     ("Diminuir volume", "<Primary>Down"), ("Silenciar", "m"), ("Ordem aleatória", "s"),
                     ("Repetir", "r"))),
-    ("Navegação", (("Buscar", "<Primary>f"), ("Tocando agora", "<Primary>1"), ("Fila", "<Primary>2"),
+    ("Tela cheia", (("Expandir com letra e visualizador", "<Primary>1"), ("Tela cheia ou janela", "F11"),
+                    ("Recolher", "Escape"))),
+    ("Navegação", (("Buscar", "<Primary>f"), ("Fila", "<Primary>2"),
                    ("Músicas", "<Primary>3"), ("Álbuns", "<Primary>4"), ("Artistas", "<Primary>5"),
                    ("Preferências", "<Primary>comma"), ("Atalhos do teclado", "<Primary>question"),
                    ("Fechar a janela (a música continua)", "<Primary>w"), ("Sair do Ayo Música", "<Primary>q"))),
 )
-VIEWS_BY_KEY = {Gdk.KEY_1: "now", Gdk.KEY_2: "queue", Gdk.KEY_3: "songs", Gdk.KEY_4: "albums", Gdk.KEY_5: "artists"}
+VIEWS_BY_KEY = {Gdk.KEY_2: "queue", Gdk.KEY_3: "songs", Gdk.KEY_4: "albums", Gdk.KEY_5: "artists"}
 
 
 class Integration:
@@ -113,6 +115,9 @@ class Integration:
                         Gdk.KEY_Down: lambda: page.set_volume(max(0, page.volume_value - 5)),
                         Gdk.KEY_comma: page.show_preferences, Gdk.KEY_question: self.show_shortcuts,
                         Gdk.KEY_w: page.window.close, Gdk.KEY_W: page.window.close}
+            if keyval == Gdk.KEY_1:
+                page.toggle_expanded()
+                return True
             if keyval in VIEWS_BY_KEY:
                 page.show_view(VIEWS_BY_KEY[keyval])
                 return True
@@ -120,6 +125,12 @@ class Integration:
                 handlers[keyval]()
                 return True
             return False
+        if keyval == Gdk.KEY_F11:
+            page.toggle_fullscreen()
+            return True
+        if keyval == Gdk.KEY_Escape and page.is_expanded() and not typing and not self._popup_open():
+            page.collapse()
+            return True
         if typing:
             return False
         if shift and keyval in (Gdk.KEY_Left, Gdk.KEY_Right):
@@ -135,6 +146,10 @@ class Integration:
             handlers[keyval]()
             return True
         return False
+
+    def _popup_open(self):
+        """Esc first closes an open menu or dialog, not the expanded player."""
+        return self.page.expanded.options.get_active() or self.page.window.get_visible_dialog() is not None
 
     def show_shortcuts(self):
         dialog = Adw.ShortcutsDialog()

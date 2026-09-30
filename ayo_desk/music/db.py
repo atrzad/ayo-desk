@@ -294,3 +294,23 @@ class MusicDB:
         keys.discard("")
         return keys
 
+    # ── lyrics (online / voice-synced cache and delays) ────────────────────
+    def lyrics_row(self, path):
+        row = self.db.execute("SELECT * FROM lyrics_cache WHERE path=?", (path,)).fetchone()
+        return dict(row) if row else None
+
+    def save_lyrics(self, path, source, synced, text, quality=None):
+        """Keep lyrics found for a song (the delay the user set is preserved)."""
+        with self.db:
+            self.db.execute(
+                "INSERT INTO lyrics_cache(path, source, synced, text, quality, updated) VALUES(?,?,?,?,?,?) "
+                "ON CONFLICT(path) DO UPDATE SET source=excluded.source, synced=excluded.synced, "
+                "text=excluded.text, quality=excluded.quality, updated=excluded.updated",
+                (path, source, int(bool(synced)), text, quality, now()))
+
+    def set_lyrics_offset(self, path, offset_ms):
+        with self.db:
+            self.db.execute(
+                "INSERT INTO lyrics_cache(path, offset_ms, updated) VALUES(?,?,?) "
+                "ON CONFLICT(path) DO UPDATE SET offset_ms=excluded.offset_ms", (path, int(offset_ms), now()))
+

@@ -30,12 +30,12 @@ class PlayerBar(Gtk.Box):
 
         now = Gtk.Box(spacing=12)
         self.now = now
-        self.cover_button = Gtk.Button(tooltip_text="Tocando agora")
+        self.cover_button = Gtk.Button(tooltip_text="Expandir")
         self.cover_button.add_css_class("flat")
         self.cover_button.add_css_class("cover-button")
         self.cover = Cover(52)
         self.cover_button.set_child(self.cover)
-        self.cover_button.connect("clicked", lambda _b: controller.show_view("now"))
+        self.cover_button.connect("clicked", lambda _b: controller.toggle_expanded())
         now.append(self.cover_button)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, spacing=2)
         self.title = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, max_width_chars=28, width_chars=6)
@@ -51,6 +51,9 @@ class PlayerBar(Gtk.Box):
         self.favorite.add_css_class("flat")
         self.favorite.connect("toggled", self._favorite_toggled)
         now.append(self.favorite)
+        self.expand = icon_button("view-fullscreen-symbolic", "Tela cheia com letra e visualizador (Ctrl+1)",
+                                  controller.toggle_expanded)
+        now.append(self.expand)
         layout.set_start_widget(now)
 
         center = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, width_request=400)
@@ -98,6 +101,11 @@ class PlayerBar(Gtk.Box):
         self.volume.connect("value-changed", lambda scale: controller.set_volume(scale.get_value()))
         side.append(self.volume)
         layout.set_end_widget(side)
+
+    def set_expanded(self, expanded):
+        self.expand.set_icon_name("go-down-symbolic" if expanded else "view-fullscreen-symbolic")
+        self.expand.set_tooltip_text("Recolher (Esc)" if expanded else "Tela cheia com letra e visualizador (Ctrl+1)")
+        self.cover_button.set_tooltip_text("Recolher" if expanded else "Expandir")
 
     def _favorite_toggled(self, button):
         button.set_icon_name("starred-symbolic" if button.get_active() else "non-starred-symbolic")

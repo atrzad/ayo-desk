@@ -113,6 +113,17 @@ MIGRATIONS = (
         restored INTEGER NOT NULL DEFAULT 0);
     CREATE INDEX tag_backups_batch ON tag_backups(batch, restored);
     """,
+    # 6 — lyrics found online (LRCLIB) or synced by voice, plus each song's lyrics delay.
+    """
+    CREATE TABLE lyrics_cache (
+        path TEXT PRIMARY KEY,
+        source TEXT NOT NULL DEFAULT '',
+        synced INTEGER NOT NULL DEFAULT 0,
+        text TEXT NOT NULL DEFAULT '',
+        offset_ms INTEGER NOT NULL DEFAULT 0,
+        quality REAL,
+        updated TEXT NOT NULL);
+    """,
 )
 
 

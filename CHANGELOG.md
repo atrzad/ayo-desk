@@ -23,6 +23,10 @@
   completa artista, álbum, ano, faixa, gênero, ISRC e troca miniaturas de vídeo pela capa oficial. Grava sozinho
   quando há certeza, manda o resto para revisão e guarda backup para desfazer. Identificar álbum inteiro.
 - Corrigido: seek durante a troca gapless de faixa podia travar o player.
+- Tela cheia no lugar de "Tocando agora": visualizador ao fundo, capa e letra sincronizada que rola sozinha,
+  clique para pular, ajuste de atraso por música e salvar como `.lrc`. Letras do `.lrc`/`_private.lrc` ao lado,
+  das tags ou do LRCLIB; letras sem tempos podem ser sincronizadas pela voz com o whisper.cpp, sem enviar nada.
+- Corrigido: o visualizador não voltava depois de fechar e reabrir a janela, nem quando o `cava` fechava sozinho.
 
 ## 0.1.2
 

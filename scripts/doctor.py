@@ -44,6 +44,8 @@ def main():
           + ("efeitos de áudio disponíveis" if not missing else "faltam: " + ", ".join(missing)))
     found = shutil.which("songrec") is not None
     print(f"{'OK' if found else 'AVISO':5} {'songrec':18} reconhecer músicas pelo som (sudo pacman -S songrec)")
+    found = any(shutil.which(name) for name in ("whisper-cli", "whisper-cpp", "whisper-main"))
+    print(f"{'OK' if found else 'AVISO':5} {'whisper-cpp':18} sincronizar letras pela voz (sudo pacman -S whisper-cpp)")
     families = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True,
                               check=False).stdout if shutil.which("fc-list") else ""
     for family, package, purpose in (("Noto Sans", "noto-fonts", "textos em geral"),

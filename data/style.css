@@ -66,6 +66,18 @@ scale:focus { border-color: @window_fg_color; outline-color: @window_fg_color; b
 .track-table .rating { letter-spacing: 1px; font-size: 12px; }
 .now-playing-icon { color: @window_fg_color; }
 .link-button { padding: 2px 6px; }
+.expanded-player { background: @window_bg_color; }
+.expanded-visualizer { opacity: 0.2; }
+.lyrics .lyric-line { font-size: 30px; font-weight: 800; line-height: 1.2; opacity: 0.32; transition: opacity 250ms ease-out; }
+.lyrics .lyric-line.past { opacity: 0.5; }
+.lyrics .lyric-line.current { opacity: 1; }
+.lyrics.synced .lyric-line:hover { opacity: 0.8; }
+.lyrics .lyric-line.lyric-gap { font-size: 20px; }
+.lyrics.plain .lyric-line { font-size: 22px; font-weight: 600; opacity: 0.85; }
+.lyrics.plain .lyric-line.lyric-gap { font-size: 8px; }
+.compact .lyrics .lyric-line { font-size: 21px; }
+.compact .lyrics.plain .lyric-line { font-size: 17px; }
+.small-pill { padding: 4px 14px; min-height: 0; }
 .detail-header .title-1 { font-size: 30px; }
 .queue-played { opacity: 0.55; }
 .queue-current { background: alpha(@window_fg_color, 0.08); }

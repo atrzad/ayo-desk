@@ -20,9 +20,9 @@ from ..queue import REPEAT_CYCLE, REPEAT_OFF, SHUFFLE_OFF, SHUFFLE_TRACKS, PlayQ
 from ...widgets import confirm
 from .dialogs import open_containing_folder, show_about, show_preferences, show_properties
 from .equalizer import EqualizerDialog
+from .expanded import ExpandedView
 from .integration import Integration
 from .model import Library, artist_names
-from .now_playing import NowPlaying
 from .organize import Organizer
 from .playback_menu import PlaybackMenu
 from .playlists import PlaylistView, ask_name
@@ -35,8 +35,7 @@ from .tracks import parse_payload
 from .views import AlbumsView, SongsView, album_page, artist_page, artists_view, folders_view, genres_view
 
 SECTIONS = (
-    (None, (("now", "Tocando agora", "multimedia-player-symbolic"),
-            ("queue", "Fila", "view-list-bullet-symbolic"))),
+    (None, (("queue", "Fila", "view-list-bullet-symbolic"),)),
     ("Biblioteca", (("songs", "Músicas", "audio-x-generic-symbolic"),
                     ("albums", "Álbuns", "media-optical-cd-audio-symbolic"),
                     ("artists", "Artistas", "avatar-default-symbolic"),
@@ -102,19 +101,25 @@ class MusicPage(Gtk.Box):
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, hexpand=True, vexpand=True)
         content.append(self.stack)
         self.split.set_content(content)
-        self.append(self.split)
+        # The library (sidebar, views, visualizer strip) or the expanded player, above the player bar.
+        self.main = Gtk.Stack(vexpand=True, transition_duration=280, hhomogeneous=False, vhomogeneous=False)
+        library = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        library.append(self.split)
         self.strip = Visualizer(lambda: self.player.running_time(), height=(26, 30))
         self.strip.set_margin_start(12)
         self.strip.set_margin_end(12)
         self.strip_revealer = Gtk.Revealer(child=self.strip, transition_type=Gtk.RevealerTransitionType.SLIDE_UP)
-        self.append(self.strip_revealer)
+        library.append(self.strip_revealer)
+        self.main.add_named(library, "library")
+        self.append(self.main)
         self.cava = cava.Cava(self._cava_frame)
         self.bar = PlayerBar(self)
         self.playback_menu = PlaybackMenu(self)
         self.bar.side.prepend(self.playback_menu)
         self.append(self.bar)
 
-        self.now_view = NowPlaying(self)
+        self.expanded = ExpandedView(self)
+        self.main.add_named(self.expanded, "expanded")
         self.queue_view = QueueView(self)
         self.songs = SongsView(self)
         self.albums = AlbumsView(self)
@@ -123,7 +128,7 @@ class MusicPage(Gtk.Box):
         self.folders = folders_view(self)
         self.playlist_view = PlaylistView(self)
         self.organizer = Organizer(self)
-        for name, widget in (("now", self.now_view), ("queue", self.queue_view), ("songs", self.songs),
+        for name, widget in (("queue", self.queue_view), ("songs", self.songs),
                              ("albums", self.albums), ("artists", self.artists), ("genres", self.genres),
                              ("folders", self.folders), ("playlist", self.playlist_view),
                              ("organize", self.organizer.view),
@@ -135,6 +140,10 @@ class MusicPage(Gtk.Box):
         self.add_controller(drop)
 
         self.system = Integration(self)
+        # Showing the window again (after it kept playing hidden) must restart the visualizer: the
+        # app activation calls on_show() before the window is actually visible.
+        self.window.connect("notify::visible", lambda *_: self._update_spectrum())
+        self.window.connect("notify::fullscreened", lambda *_: self._fullscreen_changed())
         self.sound = Sound(self)
         self.sound.apply_equalizer()
         self.set_grayscale(self.store.setting("music.grayscale_covers", False), save=False)
@@ -286,13 +295,13 @@ class MusicPage(Gtk.Box):
         narrow.add_setter(self.bar.center, "width-request", 260)
         compact = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 560sp"))
         compact.add_setter(self.bar.center, "width-request", 170)
-        compact.add_setter(self.now_view.cover, "size", 220)
         compact.add_setter(self.bar.elapsed, "visible", False)
         compact.add_setter(self.bar.remaining, "visible", False)
         compact.add_setter(self.split, "collapsed", True)
         compact.add_setter(self.sidebar_button, "visible", True)
         compact.add_setter(self.bar.side, "visible", False)
         compact.add_setter(self.bar.favorite, "visible", False)
+        compact.add_setter(self.bar.expand, "visible", False)  # the cover still expands
         compact.add_setter(self.bar.shuffle, "visible", False)
         compact.add_setter(self.bar.repeat, "visible", False)
         self.window.add_breakpoint(narrow)
@@ -376,6 +385,8 @@ class MusicPage(Gtk.Box):
 
     # ── navigation ──────────────────────────────────────────────────────────────
     def show_view(self, name):
+        if self.is_expanded():
+            self.collapse()
         if name.startswith("playlist:"):
             self.playlist_view.show(int(name.split(":", 1)[1]))
             if self.playlist_view.playlist_id is None:
@@ -545,7 +556,7 @@ class MusicPage(Gtk.Box):
         track = self.library.get(path)
         self.bar.show_track(track, self.player)
         self.bar.show_modes(self.queue.shuffle, self.queue.repeat)
-        self.now_view.show_track(track, self.player)
+        self.expanded.show_track(track, self.player)
         if self.stack.get_visible_child_name() == "queue":
             self.queue_view.render(self.queue, self.library)
         self.save_session()
@@ -590,7 +601,7 @@ class MusicPage(Gtk.Box):
         self.current_path = None
         self.refresh_tables(previous)
         self.bar.show_track(None, self.player)
-        self.now_view.show_track(None, self.player)
+        self.expanded.show_track(None, self.player)
         self.save_session()
         self.system.changed()
         if not self.window.get_visible() and not self.closed:
@@ -1005,7 +1016,7 @@ class MusicPage(Gtk.Box):
             self.playlist_view.reload()
         if self.current_path:
             self.bar.show_track(self.library.get(self.current_path), self.player)
-            self.now_view.show_track(self.library.get(self.current_path), self.player)
+            self.expanded.show_track(self.library.get(self.current_path), self.player)
 
     def check_fonts(self):
         """Once: if some titles can't be drawn (e.g. no CJK font), say which package to install."""
@@ -1234,31 +1245,27 @@ class MusicPage(Gtk.Box):
             self.player.set_next(upcoming, self.sound.gain_for(upcoming))
 
     def on_spectrum(self, levels, endtime):
-        self.now_view.visualizer.push(levels, endtime)
+        self.expanded.visualizer.push(levels, endtime)
         self.strip.push(levels, endtime)
 
     def _cava_frame(self, levels):
-        self.now_view.visualizer.set_levels(levels)
+        self.expanded.visualizer.set_levels(levels)
         self.strip.set_levels(levels)
 
     def visualizer_source(self):
         wanted = self.store.setting("music.visualizer_source", "cava")
         return "cava" if wanted == "cava" and cava.available() else "internal"
 
-    def set_visualizer(self, active):
-        self.store.set_setting("music.visualizer", bool(active))
-        self._update_spectrum()
-
     def _update_spectrum(self):
         """Run the analyser only while something shows it (and only while the window is visible)."""
-        active = self.store.setting("music.visualizer", False)
         strip = self.store.setting("music.visualizer_strip", False)
         style = self.store.setting("music.visualizer_style", "bars")
-        for widget in (self.now_view.visualizer, self.strip):
+        for widget in (self.expanded.visualizer, self.strip):
             widget.set_style(style)
-        self.now_view.visualizer_revealer.set_reveal_child(active)
         self.strip_revealer.set_reveal_child(strip)
-        showing = ((active and self.stack.get_visible_child_name() == "now") or strip) \
+        background = self.expanded.wants_visualizer()
+        self.expanded.visualizer.set_visible(background)
+        showing = ((self.is_expanded() and background) or (strip and not self.is_expanded())) \
             and self.window.get_visible() and not self.closed
         use_cava = showing and self.visualizer_source() == "cava"
         self.player.set_spectrum(showing and not use_cava)
@@ -1267,8 +1274,61 @@ class MusicPage(Gtk.Box):
         elif not use_cava and self.cava.running:
             self.cava.stop()
         if not showing:
-            self.now_view.visualizer.clear()
+            self.expanded.visualizer.clear()
             self.strip.clear()
+
+    # ── expanded player ─────────────────────────────────────────────────────────
+    def is_expanded(self):
+        return self.main.get_visible_child_name() == "expanded"
+
+    def expand(self, fullscreen=None):
+        """Show the expanded player (cover, synced lyrics, visualizer behind); full screen by default."""
+        if self.is_expanded():
+            return
+        self.main.set_transition_type(Gtk.StackTransitionType.OVER_UP)
+        self.main.set_visible_child_name("expanded")
+        self.expanded.show_track(self.library.get(self.current_path) if self.current_path else None, self.player)
+        self.expanded.enter()
+        self.bar.set_expanded(True)
+        if fullscreen if fullscreen is not None else self.store.setting("music.expanded_fullscreen", True):
+            self.window.fullscreen()
+        self._fullscreen_changed()
+        self._update_spectrum()
+
+    def collapse(self):
+        if not self.is_expanded():
+            return
+        self.main.set_transition_type(Gtk.StackTransitionType.UNDER_DOWN)
+        self.main.set_visible_child_name("library")
+        self.expanded.leave()
+        self.bar.set_expanded(False)
+        if self.window.is_fullscreen():
+            self.window.unfullscreen()
+        self._fullscreen_changed()
+        self._update_spectrum()
+
+    def toggle_expanded(self):
+        if self.is_expanded():
+            self.collapse()
+        else:
+            self.expand()
+
+    def toggle_fullscreen(self):
+        """F11 / the button in the expanded player; the choice is remembered for next time."""
+        if not self.is_expanded():
+            self.expand(fullscreen=True)
+            return
+        full = not self.window.is_fullscreen()
+        self.store.set_setting("music.expanded_fullscreen", full)
+        if full:
+            self.window.fullscreen()
+        else:
+            self.window.unfullscreen()
+
+    def _fullscreen_changed(self):
+        full = self.window.is_fullscreen()
+        self.window.header.set_visible(not (full and self.is_expanded()))
+        self.expanded.set_fullscreen_look(full)
 
     def show_equalizer(self):
         EqualizerDialog(self).present(self.window)
@@ -1322,7 +1382,6 @@ class MusicPage(Gtk.Box):
             files, metas = result
             self.library.add_external(metas)
             self.play_paths(files, 0, shuffle=False)
-            self.show_view("now")
         background(work, done)
 
     def keep_running(self):
@@ -1348,6 +1407,7 @@ class MusicPage(Gtk.Box):
         self.system.close()
         self.sound.close()
         self.organizer.close()
+        self.expanded.leave()
         self.cava.stop()
         if self.volume_timer:
             self._save_volume()

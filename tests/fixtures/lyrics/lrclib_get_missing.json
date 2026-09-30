@@ -1,0 +1,6 @@
+{
+ "__status": 404,
+ "message": "Failed to find specified track",
+ "name": "TrackNotFound",
+ "statusCode": 404
+}
